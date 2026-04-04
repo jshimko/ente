@@ -2,6 +2,12 @@
     "name": "ensu",
     "version": "0.1.15",
     "private": true,
+    "scripts": {
+        "build": "next build --no-lint",
+        "dev": "next dev -p 3007",
+        "lint": "eslint .",
+        "tsc": "tsc --noEmit"
+    },
     "dependencies": {
         "@fontsource/cormorant-garamond": "^5.2.7",
         "@fontsource/jetbrains-mono": "^5.2.7",

@@ -12,6 +12,8 @@
 
 .next/
 **/.next/
+.turbo/
+**/.turbo/
 
 architecture
 CLAUDE.md

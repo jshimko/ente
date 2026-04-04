@@ -3,7 +3,11 @@
     "version": "0.0.0",
     "private": true,
     "scripts": {
-        "build:post": "rm -f out/404.html"
+        "build": "next build --no-lint",
+        "build:post": "rm -f out/404.html",
+        "dev": "next dev -p 3005",
+        "lint": "eslint .",
+        "tsc": "tsc --noEmit"
     },
     "dependencies": {
         "ente-base": "*",

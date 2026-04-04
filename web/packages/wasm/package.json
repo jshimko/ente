@@ -14,8 +14,10 @@
         "pkg"
     ],
     "scripts": {
-        "build": "wasm-pack build --target bundler",
-        "test": "vitest"
+        "build": "wasm-pack build --target bundler --no-pack",
+        "lint": "eslint .",
+        "test": "vitest",
+        "tsc": "tsc --noEmit"
     },
     "devDependencies": {
         "ente-build-config": "*",

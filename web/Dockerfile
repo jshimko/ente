@@ -1,6 +1,8 @@
 # Docs - https://github.com/ente-io/ente/blob/main/web/docs/docker.md
+ARG NODE_VERSION=24.14.1
+ARG NGINX_VERSION=1.29.7
 
-FROM node:24.14.1 AS builder
+FROM node:${NODE_VERSION} AS builder
 
 # Install Rust for building ente-wasm
 RUN apt-get update && apt-get upgrade -y && apt-get install -y curl build-essential
@@ -18,8 +20,12 @@ RUN yarn config set network-timeout 900000 -g
 
 WORKDIR /build
 
+# workspace root files
 COPY web/package.json web/package.json
 COPY web/yarn.lock web/yarn.lock
+COPY web/turbo.json web/turbo.json
+
+# app dirs
 COPY web/apps/accounts/package.json web/apps/accounts/package.json
 COPY web/apps/albums/package.json web/apps/albums/package.json
 COPY web/apps/auth/package.json web/apps/auth/package.json
@@ -30,6 +36,7 @@ COPY web/apps/share/package.json web/apps/share/package.json
 COPY web/apps/paste/package.json web/apps/paste/package.json
 COPY web/apps/photos/package.json web/apps/photos/package.json
 
+# package dirs
 COPY web/packages/accounts/package.json web/packages/accounts/package.json
 COPY web/packages/accounts-rs/package.json web/packages/accounts-rs/package.json
 COPY web/packages/base/package.json web/packages/base/package.json
@@ -39,7 +46,6 @@ COPY web/packages/media/package.json web/packages/media/package.json
 COPY web/packages/new/package.json web/packages/new/package.json
 COPY web/packages/utils/package.json web/packages/utils/package.json
 COPY web/packages/wasm/ web/packages/wasm
-
 COPY rust/.cargo/ ./rust/.cargo/
 
 ENV YARN_CACHE_FOLDER=/opt/yarn
@@ -52,41 +58,38 @@ COPY rust/core/ ./rust/core
 COPY web/packages/build-config/ ./web/packages/build-config
 COPY web/packages/wasm/ ./web/packages/wasm
 WORKDIR /build/web
-RUN yarn build:wasm
+RUN --mount=type=cache,id=cargo-registry,target=/root/.cargo/registry \
+    --mount=type=cache,id=cargo-git,target=/root/.cargo/git \
+    --mount=type=cache,id=wasm-target,target=/build/web/packages/wasm/target \
+    --mount=type=cache,id=wasm-pack,target=/root/.cache/.wasm-pack \
+    --mount=type=cache,id=wasm-turbo,target=packages/wasm/.turbo \
+    yarn build:wasm
 
-# add all packages before building the apps below
-COPY web/packages/ packages
+# add remaining packages (skip wasm — already built above) and all apps
+COPY web/packages/accounts/ packages/accounts/
+COPY web/packages/accounts-rs/ packages/accounts-rs/
+COPY web/packages/base/ packages/base/
+COPY web/packages/gallery/ packages/gallery/
+COPY web/packages/media/ packages/media/
+COPY web/packages/new/ packages/new/
+COPY web/packages/utils/ packages/utils/
+COPY web/apps/ apps/
 
-# build and cache each app individually so they only need to be rebuilt if their code changes
-COPY web/apps/paste/ ./apps/paste
-RUN yarn workspace paste next build --no-lint && yarn workspace paste build:post
-
-COPY web/apps/share/ ./apps/share
-RUN yarn workspace share next build && yarn workspace share build:post
-
-COPY web/apps/cast/ ./apps/cast
-RUN yarn workspace cast next build --no-lint
-
-COPY web/apps/embed/ ./apps/embed
-RUN yarn workspace embed next build --no-lint
-
-COPY web/apps/memories/ ./apps/memories
-RUN yarn workspace memories next build --no-lint && yarn workspace memories build:post
-
-COPY web/apps/albums/ ./apps/albums
-RUN yarn workspace albums next build --no-lint
-
-COPY web/apps/auth/ ./apps/auth
-RUN yarn workspace auth next build --no-lint
-
-COPY web/apps/accounts/ ./apps/accounts
-RUN yarn workspace accounts next build --no-lint
-
-COPY web/apps/photos/ ./apps/photos
-RUN yarn workspace photos next build --no-lint
+# build all apps in parallel with Turborepo
+# cargo/wasm-pack mounts needed because ente-wasm#build (cache:false) re-runs
+# as a dependency of apps that depend on it — fast from cache (~1s)
+RUN --mount=type=cache,id=turbo,target=.turbo \
+    --mount=type=cache,id=cargo-registry,target=/root/.cargo/registry \
+    --mount=type=cache,id=cargo-git,target=/root/.cargo/git \
+    --mount=type=cache,id=wasm-target,target=packages/wasm/target \
+    --mount=type=cache,id=wasm-pack,target=/root/.cache/.wasm-pack \
+    yarn turbo build build:post \
+    --filter=accounts --filter=albums --filter=auth --filter=cast \
+    --filter=embed --filter=memories --filter=paste --filter=photos \
+    --filter=share
 
 # https://hub.docker.com/hardened-images/catalog/dhi/nginx
-FROM dhi.io/nginx:1-debian13-dev
+FROM nginx:${NGINX_VERSION}
 
 WORKDIR /out
 
