@@ -13,6 +13,7 @@ import type { ButtonishProps } from "ente-base/components/mui";
 import { bytesInGB, formattedStorageByteSize } from "ente-gallery/utils/units";
 import { UnstyledButton } from "ente-new/photos/components/UnstyledButton";
 import type { UserDetails } from "ente-new/photos/services/user-details";
+import { isSelfHosted } from "ente-new/photos/services/settings";
 import {
     familyMemberStorageLimit,
     familyUsage,
@@ -165,16 +166,37 @@ type UserSubscriptionCardContentsProps = SubscriptionCardContentOverlayProps & {
 
 const UserSubscriptionCardContents: React.FC<
     UserSubscriptionCardContentsProps
-> = ({ userDetails, totalStorage }) => (
-    <>
-        <StorageSection storage={totalStorage} usage={userDetails.usage} />
-        <IndividualUsageSection
-            usage={userDetails.usage}
-            fileCount={userDetails.fileCount}
-            storage={totalStorage}
-        />
-    </>
-);
+> = ({ userDetails, totalStorage }) =>
+    isSelfHosted() ? (
+        <>
+            <Box>
+                <Typography variant="small" sx={{ opacity: 0.7 }}>
+                    {t("storage")}
+                </Typography>
+                <Typography variant="h3">
+                    {formattedStorageByteSize(userDetails.usage, {
+                        round: true,
+                    })}{" "}
+                    {t("used")}
+                </Typography>
+            </Box>
+            <Typography variant="mini" sx={{ fontWeight: "medium" }}>
+                {t("photos_count", { count: userDetails.fileCount })}
+            </Typography>
+        </>
+    ) : (
+        <>
+            <StorageSection
+                storage={totalStorage}
+                usage={userDetails.usage}
+            />
+            <IndividualUsageSection
+                usage={userDetails.usage}
+                fileCount={userDetails.fileCount}
+                storage={totalStorage}
+            />
+        </>
+    );
 
 interface StorageSectionProps {
     usage: number;

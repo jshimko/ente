@@ -5,6 +5,7 @@ import 'package:logging/logging.dart';
 import 'package:photos/core/constants.dart';
 import "package:photos/generated/l10n.dart";
 import 'package:photos/models/user_details.dart';
+import 'package:photos/service_locator.dart';
 import 'package:photos/states/user_details_state.dart';
 import 'package:photos/theme/colors.dart';
 import "package:photos/ui/common/loading_widget.dart";
@@ -122,6 +123,10 @@ class _StorageCardWidgetState extends State<StorageCardWidget> {
   }
 
   Widget _userDetails(UserDetails userDetails) {
+    if (flagService.isSelfHosted) {
+      return _selfHostedUserDetails(userDetails);
+    }
+
     const hundredMBinBytes = 107374182;
     const oneTBinBytes = 1073741824000;
     showFamilyBreakup = userDetails.isPartOfFamily();
@@ -275,6 +280,65 @@ class _StorageCardWidgetState extends State<StorageCardWidget> {
                 ),
               ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _selfHostedUserDetails(UserDetails userDetails) {
+    final usedStorageInBytes = userDetails.getFamilyOrPersonalUsage();
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            AppLocalizations.of(context).storage,
+            style: const TextStyle(
+              fontFamily: 'Montserrat',
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+              color: textMutedDark,
+            ),
+          ),
+          const SizedBox(height: 2),
+          RichText(
+            overflow: TextOverflow.ellipsis,
+            maxLines: 1,
+            text: TextSpan(
+              style: const TextStyle(
+                fontFamily: 'Montserrat',
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: textBaseDark,
+                letterSpacing: -1,
+              ),
+              children: [
+                TextSpan(
+                  text: '${convertBytesToReadableFormat(usedStorageInBytes)} ',
+                ),
+                const TextSpan(
+                  text: 'used',
+                  style: TextStyle(color: textMutedDark),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            AppLocalizations.of(context).memoryCount(
+              count: userDetails.fileCount,
+              formattedCount: NumberFormat().format(userDetails.fileCount),
+            ),
+            style: const TextStyle(
+              fontFamily: 'Montserrat',
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              color: Color.fromRGBO(165, 165, 165, 0.79),
+            ),
           ),
         ],
       ),

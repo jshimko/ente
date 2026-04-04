@@ -59,6 +59,8 @@ class FlagService {
 
   bool get enableStripe => Platform.isIOS ? false : flags.enableStripe;
 
+  bool get isSelfHosted => flags.isSelfHosted;
+
   bool get mapEnabled => flags.mapEnabled;
 
   bool get isBetaUser => internalUser || flags.betaUser;

@@ -102,6 +102,14 @@ export interface Settings {
      * Default: "my.ente.io"
      */
     customDomainCNAME: string;
+
+    /**
+     * `true` if the server is running in self-hosted mode.
+     *
+     * When true, billing-related UI (plan selector, upgrade CTAs, storage
+     * limit bars) is hidden since storage is effectively unlimited.
+     */
+    isSelfHosted: boolean;
 }
 
 const createDefaultSettings = (): Settings => ({
@@ -111,6 +119,7 @@ const createDefaultSettings = (): Settings => ({
     castURL: "https://cast.ente.io",
     embedURL: "https://embed.ente.io",
     customDomainCNAME: "my.ente.io",
+    isSelfHosted: false,
 });
 
 /**
@@ -190,6 +199,7 @@ const FeatureFlags = z.object({
     embedUrl: z.string().nullish().transform(nullToUndefined),
     customDomain: z.string().nullish().transform(nullToUndefined),
     customDomainCNAME: z.string().nullish().transform(nullToUndefined),
+    isSelfHosted: z.boolean().nullish().transform(nullToUndefined),
 });
 
 type FeatureFlags = z.infer<typeof FeatureFlags>;
@@ -205,6 +215,7 @@ const syncSettingsSnapshotWithLocalStorage = () => {
     if (flags?.customDomain) settings.customDomain = flags.customDomain;
     if (flags?.customDomainCNAME)
         settings.customDomainCNAME = flags.customDomainCNAME;
+    settings.isSelfHosted = flags?.isSelfHosted || false;
     updateChecksumProtectedUploadsEnabled(true);
     setSettingsSnapshot(settings);
 };
@@ -242,6 +253,11 @@ const setSettingsSnapshot = (snapshot: Settings) => {
  * Emails that end in "@ente.io" are considered as dev users.
  */
 export const isDevBuildAndUser = () => isDevBuild && isDevUserViaEmail();
+
+/**
+ * Return `true` if the server is running in self-hosted mode.
+ */
+export const isSelfHosted = () => _state.settingsSnapshot.isSelfHosted;
 
 const isDevUserViaEmail = () =>
     !!savedPartialLocalUser()?.email?.endsWith("@ente.io");

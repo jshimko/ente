@@ -42,15 +42,17 @@ func NewOfferController(
 	blackFridayOffers := make(ente.BlackFridayOfferPerCountry)
 	path, err := config.BillingConfigFilePath("black-friday.json")
 	if err != nil {
-		log.Fatalf("Skipping BF configuration, config file not found: %v", err)
-	}
-	data, err := os.ReadFile(path)
-	if err != nil {
-		log.Info("Skipping optional Black Friday offers", err)
-	}
-	err = json.Unmarshal(data, &blackFridayOffers)
-	if err != nil {
-		log.Info("Could not get Black Friday Offer", err)
+		log.Infof("Skipping BF configuration, config file not found: %v", err)
+	} else if path != "" {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			log.Info("Skipping optional Black Friday offers", err)
+		} else {
+			err = json.Unmarshal(data, &blackFridayOffers)
+			if err != nil {
+				log.Info("Could not get Black Friday Offer", err)
+			}
+		}
 	}
 	return &OfferController{
 		BlackFridayOffers: blackFridayOffers,

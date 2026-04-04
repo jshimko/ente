@@ -46,6 +46,7 @@ type FeatureFlagResponse struct {
 	EmbedUrl            string  `json:"embedUrl"`
 	CustomDomain        *string `json:"customDomain,omitempty"`
 	CustomDomainCNAME   string  `json:"customDomainCNAME,omitempty"`
+	IsSelfHosted        bool    `json:"isSelfHosted"`
 }
 
 const (

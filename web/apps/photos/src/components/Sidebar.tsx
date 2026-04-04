@@ -102,6 +102,7 @@ import {
 import type { SidebarActionID } from "ente-new/photos/services/search/types";
 import {
     isDevBuildAndUser,
+    isSelfHosted,
     pullSettings,
     updateCFProxyDisabledPreference,
     updateCustomDomain,
@@ -488,6 +489,7 @@ const UserDetailsSection: React.FC<UserDetailsSectionProps> = ({
     );
 
     const handleSubscriptionCardClick = () => {
+        if (isSelfHosted()) return;
         if (isNonAdminFamilyMember) {
             showManageMemberSubscription();
         } else {
@@ -546,6 +548,8 @@ const SubscriptionStatus: React.FC<SubscriptionStatusProps> = ({
     userDetails,
     onShowPlanSelector,
 }) => {
+    if (isSelfHosted()) return <></>;
+
     const hasAMessage = useMemo(() => {
         if (isPartOfFamily(userDetails) && !isFamilyAdmin(userDetails)) {
             return false;

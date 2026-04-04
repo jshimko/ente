@@ -2,6 +2,7 @@
     "name": "ente-web",
     "version": "0.0.0",
     "private": true,
+    "description": "Ente web apps and packages",
     "workspaces": [
         "apps/*",
         "packages/*"

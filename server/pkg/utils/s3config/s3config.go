@@ -154,9 +154,11 @@ func (config *S3Config) initialize() {
 		}
 	}
 
-	if err := viper.Sub("s3").Unmarshal(&config.fileDataConfig); err != nil {
-		log.Fatalf("Unable to decode into struct: %v\n", err)
-		return
+	if s3Sub := viper.Sub("s3"); s3Sub != nil {
+		if err := s3Sub.Unmarshal(&config.fileDataConfig); err != nil {
+			log.Fatalf("Unable to decode into struct: %v\n", err)
+			return
+		}
 	}
 
 }

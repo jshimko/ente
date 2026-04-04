@@ -1,0 +1,515 @@
+# CLAUDE.md — Museum (Ente API Server)
+
+Go API server powering all Ente clients (Photos, Auth, Locker). Handles authentication, E2EE key management, file metadata, billing, and multi-datacenter object replication.
+
+**Documented:** 2026-03-31
+**Commit:** aed55875c1
+
+---
+
+## Directory Structure
+
+```sh
+server/
+├── cmd/museum/main.go         # Entry point: config, DB, routing, cron jobs (~1,345 lines)
+├── ente/                      # Domain models & entities (pure data, no I/O)
+│   ├── user.go, file.go, collection.go, billing.go, errors.go, ...
+│   ├── jwt/                   # JWT claim types (PAYMENT, FAMILIES, ACCOUNTS)
+│   ├── cache/                 # User cache structures
+│   ├── cast/                  # Chromecast models
+│   ├── social/                # Comments, reactions, anonymous users
+│   ├── storagebonus/          # Referral/bonus models
+│   ├── filedata/              # File data models
+│   └── base/                  # Request ID generation, base utilities
+├── pkg/
+│   ├── api/                   # HTTP handlers (request parsing, response writing)
+│   ├── controller/            # Business logic (orchestrates repos + external services)
+│   ├── repo/                  # Data access (raw SQL queries via database/sql)
+│   ├── middleware/             # Auth, rate limiting, CORS, logging, panic recovery
+│   ├── utils/                 # Shared utilities
+│   │   ├── config/            # Viper configuration loader
+│   │   ├── auth/              # Token extraction, password hashing, random generation
+│   │   ├── billing/           # Plan definitions, Stripe client setup
+│   │   ├── crypto/            # XSalsa20-Poly1305 encrypt/decrypt, BLAKE2b hashing
+│   │   ├── email/             # SMTP & Transmail (Zoho) email sending
+│   │   ├── handler/           # Error-to-HTTP-status mapping, response helpers
+│   │   ├── s3config/          # Multi-datacenter S3 client setup
+│   │   └── time/, string/, array/, network/, random/, recover/
+│   └── external/              # External service clients (Wasabi, Zoho, Listmonk)
+├── migrations/                # 238 PostgreSQL migration files (golang-migrate)
+├── configurations/            # Environment YAML configs
+│   ├── local.yaml             # Dev defaults (port 8080, MinIO, stdout logging)
+│   └── production.yaml        # Prod overrides (TLS, file logging)
+├── mail-templates/            # 37+ HTML email templates
+├── web-templates/             # HTML templates for server-rendered pages
+├── tools/                     # Standalone utilities (key generation, S3 cleanup)
+├── scripts/                   # Deployment & test scripts
+├── compose.yaml               # Docker dev cluster (Museum + Postgres + MinIO)
+├── compose.test.yaml          # Docker test cluster
+├── Dockerfile                 # Multi-stage build (golang:1.23 → alpine:3.21)
+└── go.mod                     # Go 1.23, 47 direct dependencies
+```
+
+---
+
+## Architecture
+
+```
+HTTP Request
+  │
+  ├─ Middleware: requestid → logger → CORS → gzip → panic-recover
+  │
+  ├─ Route Group Middleware: rate-limiter → auth (token/JWT/public-access)
+  │
+  ▼
+pkg/api/         Handlers — parse request, call controller, write response
+  │
+  ▼
+pkg/controller/  Controllers — business logic, orchestrate repos + services
+  │
+  ▼
+pkg/repo/        Repositories — raw SQL via database/sql, transactions
+  │
+  ▼
+PostgreSQL       Metadata, encrypted keys, subscriptions
+S3 (3 DCs)       Encrypted file data (B2, Wasabi, Scaleway)
+```
+
+**No ORM** — all queries are hand-written SQL.
+**Dependency injection** — repos/controllers/handlers constructed in `main.go` and passed by struct fields.
+
+---
+
+## Quick Navigation
+
+| To find...                    | Look in...                                                 |
+| ----------------------------- | ---------------------------------------------------------- |
+| All HTTP routes               | `cmd/museum/main.go:504-1100` (route registration)         |
+| A specific API handler        | `pkg/api/<domain>.go`                                      |
+| Business logic for a feature  | `pkg/controller/<domain>.go` or `pkg/controller/<domain>/` |
+| Database queries              | `pkg/repo/<domain>.go` or `pkg/repo/<domain>/`             |
+| Domain model / request types  | `ente/<domain>.go`                                         |
+| Error definitions             | `ente/errors.go`                                           |
+| Error → HTTP status mapping   | `pkg/utils/handler/handler.go`                             |
+| Auth middleware (token/JWT)   | `pkg/middleware/auth.go`                                   |
+| Rate limiting                 | `pkg/middleware/rate_limit.go`                             |
+| Configuration loading         | `pkg/utils/config/config.go`                               |
+| S3 multi-DC setup             | `pkg/utils/s3config/s3config.go`                           |
+| Crypto (encrypt/decrypt/hash) | `pkg/utils/crypto/`                                        |
+| Email sending                 | `pkg/utils/email/email.go`                                 |
+| Billing plan definitions      | `pkg/utils/billing/`                                       |
+| DB migrations                 | `migrations/{number}_{name}.up.sql`                        |
+| Cron job schedules            | `cmd/museum/main.go:1104-1263`                             |
+| Docker dev environment        | `compose.yaml`                                             |
+| Dev config defaults           | `configurations/local.yaml`                                |
+| Email HTML templates          | `mail-templates/`                                          |
+
+---
+
+## Route Groups & Authentication
+
+All routes registered in `cmd/museum/main.go`. Ten route groups with different auth:
+
+| Group                 | Path Prefix          | Auth Method           | Middleware                             |
+| --------------------- | -------------------- | --------------------- | -------------------------------------- |
+| `publicAPI`           | `/`                  | None                  | Global rate limit + per-API rate limit |
+| `privateAPI`          | `/`                  | `X-Auth-Token` header | Token auth + per-user rate limit       |
+| `adminAPI`            | `/admin`             | Token + admin check   | Token auth + admin middleware          |
+| `paymentJwtAuthAPI`   | `/`                  | JWT (PAYMENT scope)   | JWT token validation                   |
+| `familiesJwtAuthAPI`  | `/`                  | JWT (FAMILIES scope)  | JWT + per-user rate limit              |
+| `accountsJwtAuthAPI`  | `/`                  | JWT (ACCOUNTS scope)  | JWT token validation                   |
+| `publicCollectionAPI` | `/public-collection` | `X-Auth-Access-Token` | Collection link middleware             |
+| `fileLinkApi`         | `/file-link`         | `X-Auth-Access-Token` | File link middleware                   |
+| `publicMemoryAPI`     | `/public-memory`     | `X-Auth-Access-Token` | Memory share middleware                |
+| `castAPI`             | `/cast`              | Cast-specific         | Cast auth middleware                   |
+
+**Token extraction** (`pkg/utils/auth/auth.go`):
+
+- `X-Auth-Token` header or `token` query param → standard auth
+- `X-Auth-Access-Token` header or `accessToken` query param → public access
+- `X-Cast-Access-Token` header or `castToken` query param → cast device
+
+**App detection**: `X-Client-Package` header → `io.ente.auth` (Auth), `io.ente.locker` (Locker), default (Photos)
+
+---
+
+## Core API Domains
+
+### Users & Auth
+
+| Layer      | File                                       |
+| ---------- | ------------------------------------------ |
+| Handler    | `pkg/api/user.go`                          |
+| Controller | `pkg/controller/user/`                     |
+| Repo       | `pkg/repo/user.go`, `pkg/repo/userauth.go` |
+| Models     | `ente/user.go`                             |
+
+Key endpoints: `/users/ott` (send OTP), `/users/verify-email`, `/users/srp/*` (SRP auth), `/users/two-factor/*`, `/users/change-email`
+
+### Files
+
+| Layer      | File                                                 |
+| ---------- | ---------------------------------------------------- |
+| Handler    | `pkg/api/file.go`, `pkg/api/file_data.go`            |
+| Controller | `pkg/controller/file.go`, `pkg/controller/filedata/` |
+| Repo       | `pkg/repo/file.go`, `pkg/repo/filedata/`             |
+| Models     | `ente/file.go`                                       |
+
+Key endpoints: `/files/upload-urls`, `/files/download/:fileID`, `/files/preview/:fileID`, `/files` (create/update)
+
+### Collections
+
+| Layer      | File                          |
+| ---------- | ----------------------------- |
+| Handler    | `pkg/api/collection.go`       |
+| Controller | `pkg/controller/collections/` |
+| Repo       | `pkg/repo/collection.go`      |
+| Models     | `ente/collection.go`          |
+
+Key endpoints: `/collections` (CRUD), `/collections/share`, `/collections/sharees`, `/collections/v2`, `/collections/v3`
+
+### Billing
+
+| Layer      | File                                                                                                                 |
+| ---------- | -------------------------------------------------------------------------------------------------------------------- |
+| Handler    | `pkg/api/billing.go`                                                                                                 |
+| Controller | `pkg/controller/billing.go`, `pkg/controller/stripe.go`, `pkg/controller/appstore.go`, `pkg/controller/playstore.go` |
+| Repo       | `pkg/repo/billing.go`                                                                                                |
+| Models     | `ente/billing.go`                                                                                                    |
+
+Three payment providers: Stripe (US/India), Apple IAP, Google Play. Unified through `CommonBillingController`.
+
+### Trash
+
+| Layer      | File                      |
+| ---------- | ------------------------- |
+| Handler    | `pkg/api/trash.go`        |
+| Controller | `pkg/controller/trash.go` |
+| Repo       | `pkg/repo/trash.go`       |
+
+### Public Sharing
+
+- **Public collections**: `pkg/api/public_collection.go`, `pkg/controller/public/`
+- **File links**: `pkg/api/file_link.go`, `pkg/controller/file_link.go` (not a dir)
+- **Memory shares**: `pkg/api/memory_share.go`, `pkg/controller/memory_share/`
+
+### Social (Comments & Reactions)
+
+| Layer      | File                                                               |
+| ---------- | ------------------------------------------------------------------ |
+| Handler    | `pkg/api/comments.go`, `pkg/api/reactions.go`, `pkg/api/social.go` |
+| Controller | `pkg/controller/social/`                                           |
+| Repo       | `pkg/repo/social/`                                                 |
+| Models     | `ente/social/`                                                     |
+
+### Other Domains
+
+| Domain                       | Handler                                         | Controller                                                | Repo                       |
+| ---------------------------- | ----------------------------------------------- | --------------------------------------------------------- | -------------------------- |
+| Family plans                 | `pkg/api/family.go`                             | `pkg/controller/family/`                                  | `pkg/repo/family.go`       |
+| Emergency contacts           | `pkg/api/emergency.go`                          | `pkg/controller/emergency/`                               | `pkg/repo/emergency/`      |
+| Authenticator (2FA app)      | `pkg/api/authenticator.go`                      | `pkg/controller/authenticator/`                           | `pkg/repo/authenticator/`  |
+| Passkeys (WebAuthn)          | `pkg/api/passkeys.go`                           | `pkg/controller/passkeys.go`                              | `pkg/repo/passkey/`        |
+| Cast (Chromecast)            | `pkg/api/cast.go`                               | `pkg/controller/cast/`                                    | `pkg/repo/cast/`           |
+| Storage bonuses              | `pkg/api/storage_bonus.go`                      | `pkg/controller/storagebonus/`                            | `pkg/repo/storagebonus/`   |
+| Remote store (feature flags) | `pkg/api/remotestore.go`                        | `pkg/controller/remotestore/`                             | `pkg/repo/remotestore/`    |
+| User entities                | `pkg/api/userentity.go`                         | `pkg/controller/userentity/`                              | `pkg/repo/userentity/`     |
+| Paste                        | `pkg/api/paste.go`                              | `pkg/controller/`                                         | `pkg/repo/`                |
+| Offers/Discounts             | `pkg/api/offer.go`, `pkg/api/discountcoupon.go` | `pkg/controller/offer/`, `pkg/controller/discountcoupon/` | `pkg/repo/discountcoupon/` |
+| Embeddings (ML)              | —                                               | `pkg/controller/embedding/`                               | `pkg/repo/embedding/`      |
+| Push notifications           | `pkg/api/push.go`                               | `pkg/controller/push.go`                                  | `pkg/repo/push.go`         |
+
+---
+
+## Configuration System
+
+**Library:** Viper (`github.com/spf13/viper`)
+**Loader:** `pkg/utils/config/config.go`
+
+### Load order (later overrides earlier)
+
+1. `configurations/{ENVIRONMENT}.yaml` (default: `local.yaml`, set via `ENVIRONMENT` env var)
+2. `credentials.yaml` (or path from `ENTE_CREDENTIALS_FILE`)
+3. `museum.yaml` (gitignored local overrides)
+4. Environment variables (highest priority)
+
+### Environment variable pattern
+
+```
+YAML path          → Env var
+db.host            → ENTE_DB_HOST
+s3.b2-eu-cen.key  → ENTE_S3_B2_EU_CEN_KEY
+key.encryption     → ENTE_KEY_ENCRYPTION
+```
+
+Prefix `ENTE_`, uppercase, replace `.` and `-` with `_`.
+
+### Key config sections
+
+| Section                         | Purpose                                                           |
+| ------------------------------- | ----------------------------------------------------------------- |
+| `db.*`                          | PostgreSQL connection (host, port, name, user, password, sslmode) |
+| `s3.*`                          | S3 bucket configs per datacenter                                  |
+| `key.encryption`                | Base64 key for encrypting user emails at rest                     |
+| `key.hash`                      | Base64 key for hashing emails (lookups)                           |
+| `jwt.secret`                    | JWT signing secret                                                |
+| `smtp.*`                        | SMTP email credentials                                            |
+| `transmail.*`                   | Zoho Zeptomail credentials                                        |
+| `stripe.*`                      | Stripe API keys (per US/India account)                            |
+| `apple.shared-secret`           | Apple IAP validation                                              |
+| `webauthn.*`                    | WebAuthn relying party config                                     |
+| `discord.*`                     | Discord bot for devops alerts                                     |
+| `internal.admins`               | Admin user ID list                                                |
+| `internal.silent`               | Suppress Discord notifications                                    |
+| `internal.disable-registration` | Block new signups                                                 |
+| `internal.hardcoded-ott.*`      | Fixed OTP for testing                                             |
+| `apps.*`                        | External app URLs (public-albums, accounts, cast, family, etc.)   |
+| `jobs.cron.skip`                | Disable all cron jobs                                             |
+| `replication.*`                 | Multi-DC replication config                                       |
+| `log-file`                      | Log file path (production)                                        |
+| `http.tls.*`                    | TLS certificate paths                                             |
+
+---
+
+## Database
+
+**Engine:** PostgreSQL 15
+**Driver:** `github.com/lib/pq`
+**Migrations:** `golang-migrate/migrate/v4` — 238 files in `migrations/`
+**Connection pool:** 6 idle, 45 max open, 30min lifetime
+
+### Migration pattern
+
+```
+migrations/1_create_tables.up.sql
+migrations/1_create_tables.down.sql
+...
+migrations/238_*.up.sql
+```
+
+Migrations run automatically on startup in `setupDatabase()`.
+
+### Transaction pattern
+
+```go
+tx, err := repo.DB.BeginTx(ctx, nil)
+if err != nil { return err }
+defer tx.Rollback()
+// ... execute queries on tx ...
+return tx.Commit()
+```
+
+### Key tables
+
+| Table               | Purpose                                      |
+| ------------------- | -------------------------------------------- |
+| `users`             | User accounts (email encrypted at rest)      |
+| `key_attributes`    | Encrypted master key material, public keys   |
+| `tokens`            | Session tokens                               |
+| `otts`              | One-time tokens (email OTP)                  |
+| `files`             | Encrypted file metadata                      |
+| `collections`       | Albums/folders                               |
+| `collection_shares` | E2EE sharing between users                   |
+| `objects`           | S3 object references (key, size, datacenter) |
+| `object_cleanup`    | Queued S3 deletions                          |
+| `trash`             | Soft-deleted files                           |
+| `subscriptions`     | Payment subscriptions (Stripe/Apple/Google)  |
+| `two_factor`        | 2FA secrets and sessions                     |
+| `passkeys`          | WebAuthn credentials                         |
+| `families`          | Family plan memberships                      |
+| `queue`             | Background job queue (DB-backed)             |
+| `task_lock`         | Distributed cron job locking                 |
+| `push_tokens`       | Firebase FCM device tokens                   |
+| `memory_shares`     | Public memory share metadata                 |
+| `embeddings`        | ML embedding vectors                         |
+
+---
+
+## Background Jobs & Cron
+
+**Scheduler:** `github.com/robfig/cron/v3`
+**Setup:** `cmd/museum/main.go` — `setupAndStartBackgroundJobs()`
+**Disable all:** Set `jobs.cron.skip: true` in config
+
+### Cron schedule
+
+| Interval | Job                                | Controller                    |
+| -------- | ---------------------------------- | ----------------------------- |
+| 1m       | Remove expired OTTs                | `UserController`              |
+| 1m       | Remove expired 2FA sessions        | `TwoFactorController`         |
+| 1m       | Remove expired passkey sessions    | `PasskeyController`           |
+| 1m       | Cleanup trashed collections        | `TrashController`             |
+| 1m       | Send queued push notifications     | `PushController`              |
+| 1m       | Health check ping                  | `HealthCheckController`       |
+| 8m       | Cleanup permanently deleted files  | `FileController`              |
+| 17m      | Drop file metadata from trash      | `FileController`              |
+| 30m      | Cleanup expired pastes             | `PasteController`             |
+| 45m      | Delete unclaimed Cast codes        | `CastController`              |
+| 60m      | Send recovery reminders            | `EmergencyController`         |
+| 60m      | Cleanup expired task locks         | `LockController`              |
+| 63s      | Process empty trash requests       | `TrashController`             |
+| 90s      | Remove Wasabi compliance holds     | `ObjectCleanupController`     |
+| 101s     | Cleanup deleted embeddings         | `EmbeddingController`         |
+| 24h      | Remove old auth tokens             | `UserAuthRepo`                |
+| 24h      | Send storage limit exceeded emails | `EmailNotificationController` |
+| 24h      | Send storage warning emails        | `EmailNotificationController` |
+| 24h      | Send welcome emails                | `EmailNotificationController` |
+| 24h      | Nudge for family plan              | `EmailNotificationController` |
+| 24h      | Process inactive users             | `UserController`              |
+| 24h      | Clear expired push tokens          | `PushController`              |
+
+### Queue system (DB-backed)
+
+- Table: `queue(queue_id, queue_name, item, is_deleted, created_at)`
+- Queue names: `deleteObject` (45-day delay), `dropFileEncMetata`, `deleteEmbedding`, `trashCollectionV3`, `trashEmpty`, `removeComplianceHold`
+- Repo: `pkg/repo/queue.go`
+- Processing: Cron jobs fetch batches of 30,000 items
+
+### Background workers (goroutines)
+
+- **File Replication V3** — replicate objects to secondary DCs
+- **File Data Replication** — replicate file metadata
+- **Orphan Object Cleanup** — remove stranded S3 objects
+
+---
+
+## External Integrations
+
+| Service                          | Package                                          | Config Key                             |
+| -------------------------------- | ------------------------------------------------ | -------------------------------------- |
+| Stripe (payments)                | `pkg/controller/stripe.go`, `pkg/utils/billing/` | `stripe.*`                             |
+| Apple IAP                        | `pkg/controller/appstore.go`                     | `apple.shared-secret`                  |
+| Google Play                      | `pkg/controller/playstore.go`                    | (via service account)                  |
+| Firebase (push)                  | `pkg/controller/push.go`                         | `credentials/fcm-service-account.json` |
+| S3 (B2, Wasabi, Scaleway, MinIO) | `pkg/utils/s3config/`                            | `s3.*`                                 |
+| SMTP email                       | `pkg/utils/email/email.go`                       | `smtp.*`                               |
+| Transmail (Zoho)                 | `pkg/utils/email/email.go`                       | `transmail.*`                          |
+| Discord (alerts)                 | `pkg/controller/discord/`                        | `discord.*`                            |
+| Wasabi compliance                | `pkg/external/wasabi/`                           | (via S3 config)                        |
+| Listmonk (email marketing)       | `pkg/external/listmonk/`                         | `listmonk.*`                           |
+
+---
+
+## Error Handling
+
+**Error definitions:** `ente/errors.go`
+**HTTP mapping:** `pkg/utils/handler/handler.go`
+
+| Error                                     | HTTP Status               |
+| ----------------------------------------- | ------------------------- |
+| `ErrNotFound`, `sql.ErrNoRows`            | 404                       |
+| `ErrBadRequest`                           | 400                       |
+| `ErrPermissionDenied`                     | 403                       |
+| `ErrIncorrectOTT`, `ErrInvalidPassword`   | 401                       |
+| `ErrNoActiveSubscription`                 | 402                       |
+| `ErrStorageLimitExceeded`                 | 426                       |
+| `ErrFileTooLarge`, `ErrBatchSizeTooLarge` | 413                       |
+| `ErrVersionMismatch`                      | 409                       |
+| `ErrExpiredOTT`, `ErrUserDeleted`         | 410                       |
+| `ErrTooManyBadRequest`                    | 429                       |
+| `ErrNotImplemented`                       | 501                       |
+| `ente.ApiError` (custom)                  | `ApiError.HttpStatusCode` |
+| Validation errors                         | 400                       |
+| Unknown errors                            | 500                       |
+
+**Handler pattern:**
+
+```go
+func (h *Handler) DoSomething(c *gin.Context) {
+    var request ente.SomeRequest
+    if err := c.ShouldBindJSON(&request); err != nil {
+        handler.Error(c, stacktrace.Propagate(err, ""))
+        return
+    }
+    result, err := h.Controller.DoSomething(c, request)
+    if err != nil {
+        handler.Error(c, stacktrace.Propagate(err, ""))
+        return
+    }
+    c.JSON(http.StatusOK, result)
+}
+```
+
+---
+
+## Development
+
+### Run with Docker (recommended)
+
+```bash
+docker compose up --build          # Museum + Postgres + MinIO on :8080
+curl http://localhost:8080/ping     # Verify
+```
+
+### Run without Docker
+
+```bash
+go build -o bin/museum cmd/museum/main.go
+ENVIRONMENT=local ./bin/museum
+```
+
+### Live reload
+
+```bash
+# Uses .air.toml config
+air
+```
+
+### Connect to dev DB
+
+```bash
+docker compose exec postgres env PGPASSWORD=pgpass psql -U pguser -d ente_db
+```
+
+### Connect to MinIO
+
+```bash
+AWS_ACCESS_KEY_ID=changeme AWS_SECRET_ACCESS_KEY=changeme1234 \
+    aws s3 --endpoint-url http://localhost:3200 ls s3://b2-eu-cen
+```
+
+### Run tests
+
+```bash
+go test -v ./pkg/...
+go clean -testcache && ENV="test" go test -v ./pkg/...
+./scripts/test-in-docker.sh         # Full Docker-based test run
+```
+
+### Generate encryption keys (self-hosting)
+
+```bash
+go run tools/gen-random-keys/main.go
+```
+
+### Point clients to local server
+
+- **Web:** `NEXT_PUBLIC_ENTE_ENDPOINT=http://localhost:8080 yarn dev`
+- **Mobile:** `flutter run --dart-define=endpoint=http://localhost:8080`
+- **Mobile (alt):** Tap onboarding screen 7 times → developer settings → enter endpoint
+
+---
+
+## Monitoring
+
+- **Prometheus metrics:** Exposed on `:2112/metrics`
+- **Tracked metrics:** `museum_method_latency` (per endpoint), `museum_latency` (per status/method)
+- **Logging:** Logrus — text to stdout (local), JSON to file with rotation (production)
+- **Discord:** Startup/shutdown notifications, rate limit breach alerts
+
+---
+
+## Critical Gotchas
+
+1. **`main.go` is massive** (~1,345 lines) — all DI wiring, route registration, and cron setup live here. Search by handler/controller name to find routes.
+2. **No ORM** — all SQL is hand-written in repo files. Check `migrations/` for schema.
+3. **Emails are encrypted at rest** — stored via `pkg/utils/crypto/`, looked up by BLAKE2b hash. The `key.encryption` and `key.hash` config values are critical.
+4. **Three S3 buckets required** — hardcoded names `b2-eu-cen`, `wasabi-eu-central-2-v3`, `scw-eu-fr-v3`. Any S3-compatible provider works; names are arbitrary.
+5. **Wasabi compliance holds** — 21-day retention lock on objects. Cron job removes holds after expiry.
+6. **API versioning is path-based** — e.g., `/files/download/:fileID` vs `/files/download/v2/:fileID`. Same handler may serve both.
+7. **Admin is config-based** — user IDs in `internal.admins` config, or first registered user if unconfigured.
+8. **Queue is DB-backed** — not a message broker. The `queue` table with soft deletes and cron-based polling.
+9. **Migrations auto-run on startup** — no separate migration step needed.
+10. **Rate limiting is multi-level** — global (1000 req/s), per-API (configurable), per-user (authenticated endpoints).
+11. **`museum.yaml`** is gitignored — use it for local overrides without touching tracked config files.
+12. **Multiple Stripe accounts** — US and India regions have separate API keys and webhook secrets.

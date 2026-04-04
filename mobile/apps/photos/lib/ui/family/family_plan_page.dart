@@ -9,7 +9,7 @@ import 'package:photos/gateways/billing/models/billing_plan.dart';
 import 'package:photos/gateways/billing/models/subscription.dart';
 import 'package:photos/generated/l10n.dart';
 import 'package:photos/models/user_details.dart';
-import 'package:photos/service_locator.dart';
+import 'package:photos/service_locator.dart' show flagService, billingService;
 import 'package:photos/services/family_service.dart';
 import 'package:photos/theme/ente_theme.dart';
 import 'package:photos/theme/text_style.dart';
@@ -749,6 +749,7 @@ class _FamilyStorageOverviewCard extends StatelessWidget {
     final totalUsed =
         userDetails.familyData?.getTotalUsage() ?? userDetails.usage;
     final totalStorage = userDetails.getTotalStorage();
+    final isSelfHosted = flagService.isSelfHosted;
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -768,53 +769,58 @@ class _FamilyStorageOverviewCard extends StatelessWidget {
                 style: textTheme.bodyBold,
               ),
               Text(
-                l10n.storageUsedOfTotal(
-                  used: convertBytesToReadableFormat(totalUsed),
-                  total: convertBytesToReadableFormat(totalStorage),
-                ),
+                isSelfHosted
+                    ? '${convertBytesToReadableFormat(totalUsed)} used'
+                    : l10n.storageUsedOfTotal(
+                        used: convertBytesToReadableFormat(totalUsed),
+                        total: convertBytesToReadableFormat(totalStorage),
+                      ),
                 style: textTheme.smallMuted,
               ),
             ],
           ),
-          const SizedBox(height: 14),
-          SizedBox(
-            height: 14,
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                var currentLeft = 0.0;
-                final segmentWidgets = <Widget>[];
-                for (final member in members) {
-                  final width = totalStorage == 0
-                      ? 0.0
-                      : constraints.maxWidth * (member.usage / totalStorage);
-                  if (width <= 0) {
-                    continue;
-                  }
-                  segmentWidgets.add(
-                    Positioned(
-                      left: currentLeft,
-                      child: Container(
-                        width: width,
-                        height: 14,
-                        color: colorMap[member.email] ?? colorScheme.primary500,
+          if (!isSelfHosted) ...[
+            const SizedBox(height: 14),
+            SizedBox(
+              height: 14,
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  var currentLeft = 0.0;
+                  final segmentWidgets = <Widget>[];
+                  for (final member in members) {
+                    final width = totalStorage == 0
+                        ? 0.0
+                        : constraints.maxWidth * (member.usage / totalStorage);
+                    if (width <= 0) {
+                      continue;
+                    }
+                    segmentWidgets.add(
+                      Positioned(
+                        left: currentLeft,
+                        child: Container(
+                          width: width,
+                          height: 14,
+                          color:
+                              colorMap[member.email] ?? colorScheme.primary500,
+                        ),
                       ),
+                    );
+                    currentLeft += width;
+                  }
+
+                  return ClipRRect(
+                    borderRadius: BorderRadius.circular(7),
+                    child: Stack(
+                      children: [
+                        Container(color: colorScheme.fillMuted),
+                        ...segmentWidgets,
+                      ],
                     ),
                   );
-                  currentLeft += width;
-                }
-
-                return ClipRRect(
-                  borderRadius: BorderRadius.circular(7),
-                  child: Stack(
-                    children: [
-                      Container(color: colorScheme.fillMuted),
-                      ...segmentWidgets,
-                    ],
-                  ),
-                );
-              },
+                },
+              ),
             ),
-          ),
+          ],
         ],
       ),
     );

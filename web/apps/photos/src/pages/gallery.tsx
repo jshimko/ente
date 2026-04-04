@@ -142,7 +142,7 @@ import {
     type SearchOption,
     type SidebarActionID,
 } from "ente-new/photos/services/search/types";
-import { initSettings } from "ente-new/photos/services/settings";
+import { initSettings, isSelfHosted } from "ente-new/photos/services/settings";
 import {
     redirectToCustomerPortal,
     savedUserDetailsOrTriggerPull,
@@ -529,7 +529,7 @@ const Page: React.FC = () => {
 
             // If the user created a new account on this client, show them the
             // plan options.
-            if (getAndClearJustSignedUp()) {
+            if (getAndClearJustSignedUp() && !isSelfHosted()) {
                 showPlanSelector();
             }
 
