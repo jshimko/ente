@@ -44,7 +44,13 @@
       "Bash(dart run:*)",
       "Bash(dart analyze:*)",
       "Bash(yarn lint:*)",
-      "Bash(yarn prettier:*)"
+      "Bash(yarn prettier:*)",
+      "WebFetch(domain:taskfile.dev)",
+      "Bash(command -v task)",
+      "Bash(task --version)",
+      "Bash(task:*)",
+      "Bash(command -v flutter)",
+      "Bash(command -v melos)"
     ]
   }
 }

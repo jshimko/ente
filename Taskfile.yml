@@ -1,0 +1,768 @@
+# Taskfile.yml — Ente Monorepo Task Runner
+# https://taskfile.dev
+#
+# Usage:
+#   task                    Show available tasks
+#   task web:dev -- photos  Dev server for a specific web app
+#   task server:up          Start Docker Compose stack
+#   task build              Build all components
+#   task lint               Lint all components
+#   task clean              Clean all build artifacts
+
+version: "3"
+
+vars:
+  # Default app name when none specified via CLI_ARGS
+  APP: "{{if .CLI_ARGS}}{{.CLI_ARGS}}{{else}}photos{{end}}"
+
+tasks:
+  default:
+    desc: Show all available tasks
+    silent: true
+    cmds:
+      - task --list-all
+
+  # ===========================================================================
+  # WEB — Node.js / TypeScript / Yarn / Turbo
+  # ===========================================================================
+
+  web:install:
+    desc: Install web dependencies
+    dir: web
+    sources:
+      - web/yarn.lock
+      - web/package.json
+      - web/apps/*/package.json
+      - web/packages/*/package.json
+    status:
+      - test -d node_modules
+    preconditions:
+      - sh: command -v yarn
+        msg: "yarn is required — install via corepack or npm"
+    cmds:
+      - yarn install --frozen-lockfile
+
+  web:dev:
+    desc: "Start web dev server [task web:dev -- <app>]"
+    dir: web
+    deps: [web:install]
+    cmds:
+      - yarn dev:{{.APP}}
+
+  web:build:
+    desc: "Build a web app [task web:build -- <app>]"
+    dir: web
+    deps: [web:install]
+    sources:
+      - web/apps/{{.APP}}/src/**/*
+      - web/apps/{{.APP}}/package.json
+      - web/apps/{{.APP}}/next.config.*
+      - web/apps/{{.APP}}/tsconfig.json
+      - web/packages/*/src/**/*
+      - web/packages/*/package.json
+      - web/yarn.lock
+    generates:
+      - web/apps/{{.APP}}/out/**/*
+      - web/apps/{{.APP}}/dist/**/*
+    cmds:
+      - yarn build:{{.APP}}
+
+  web:build-wasm:
+    desc: Build the WASM package from Rust source
+    dir: web
+    deps: [web:install]
+    sources:
+      - rust/core/src/**/*.rs
+      - rust/core/Cargo.toml
+      - rust/core/Cargo.lock
+      - web/packages/wasm/src/**/*.rs
+      - web/packages/wasm/Cargo.toml
+    generates:
+      - web/packages/wasm/pkg/**/*
+    preconditions:
+      - sh: command -v wasm-pack
+        msg: "wasm-pack is required — install via cargo install wasm-pack"
+    cmds:
+      - yarn build:wasm
+
+  web:lint:
+    desc: Lint all web code (prettier + eslint + tsc)
+    dir: web
+    deps: [web:install]
+    sources:
+      - web/apps/*/src/**/*
+      - web/packages/*/src/**/*
+      - web/apps/*/tsconfig.json
+      - web/packages/*/tsconfig.json
+      - web/.prettierrc.json
+      - web/yarn.lock
+    cmds:
+      - yarn lint
+
+  web:lint-fix:
+    desc: Auto-fix web lint issues
+    dir: web
+    deps: [web:install]
+    cmds:
+      - yarn lint-fix
+
+  web:test:
+    desc: Run web tests (WASM package)
+    dir: web
+    deps: [web:install]
+    cmds:
+      - yarn test:run
+
+  web:clean:
+    desc: Clean web build artifacts
+    cmds:
+      - rm -rf web/node_modules
+      - rm -rf web/packages/wasm/pkg
+      - find web/apps -maxdepth 2 -type d \( -name out -o -name dist -o -name .next -o -name .next-dev -o -name .next-desktop \) -exec rm -rf {} + 2>/dev/null || true
+      - find web -type d -name .turbo -exec rm -rf {} + 2>/dev/null || true
+
+  # ===========================================================================
+  # SERVER — Go / Gin / Docker Compose
+  # ===========================================================================
+
+  server:install:
+    desc: Download server Go dependencies
+    dir: server
+    sources:
+      - server/go.mod
+      - server/go.sum
+    preconditions:
+      - sh: command -v go
+        msg: "go is required — install from https://go.dev"
+    cmds:
+      - go mod download
+
+  server:build:
+    desc: Build the Museum server binary
+    dir: server
+    deps: [server:install]
+    sources:
+      - server/cmd/**/*.go
+      - server/ente/**/*.go
+      - server/pkg/**/*.go
+      - server/go.mod
+      - server/go.sum
+    generates:
+      - server/bin/museum
+    preconditions:
+      - sh: command -v go
+        msg: "go is required — install from https://go.dev"
+    cmds:
+      - go build -o bin/museum cmd/museum/main.go
+
+  server:dev:
+    desc: Start Museum with hot reload (air)
+    dir: server
+    preconditions:
+      - sh: command -v air
+        msg: "air is required — install via go install github.com/air-verse/air@latest"
+    cmds:
+      - air
+
+  server:lint:
+    desc: Lint server Go code (go vet + staticcheck)
+    dir: server
+    sources:
+      - server/cmd/**/*.go
+      - server/ente/**/*.go
+      - server/pkg/**/*.go
+      - server/go.mod
+      - server/go.sum
+    preconditions:
+      - sh: command -v go
+        msg: "go is required — install from https://go.dev"
+    cmds:
+      - ./scripts/lint.sh
+
+  server:test:
+    desc: Run server tests
+    dir: server
+    preconditions:
+      - sh: command -v go
+        msg: "go is required — install from https://go.dev"
+    cmds:
+      - go test -v ./pkg/...
+
+  server:up:
+    desc: Start server stack (Museum + Postgres + MinIO)
+    dir: server
+    preconditions:
+      - sh: command -v docker
+        msg: "docker is required"
+    cmds:
+      - docker compose up --build
+
+  server:up-d:
+    desc: Start server stack in background
+    dir: server
+    preconditions:
+      - sh: command -v docker
+        msg: "docker is required"
+    cmds:
+      - docker compose up --build -d
+
+  server:down:
+    desc: Stop server stack
+    dir: server
+    preconditions:
+      - sh: command -v docker
+        msg: "docker is required"
+    cmds:
+      - docker compose down
+
+  server:logs:
+    desc: Tail server stack logs
+    dir: server
+    preconditions:
+      - sh: command -v docker
+        msg: "docker is required"
+    cmds:
+      - docker compose logs -f
+
+  server:db:
+    desc: Open psql shell to dev Postgres
+    dir: server
+    preconditions:
+      - sh: command -v docker
+        msg: "docker is required"
+    cmds:
+      - docker compose exec postgres env PGPASSWORD=pgpass psql -U pguser -d ente_db
+
+  server:clean:
+    desc: Clean server build artifacts
+    cmds:
+      - rm -rf server/bin server/tmp
+      - rm -f server/museum server/main
+      - find server -name "__debug_bin*" -delete 2>/dev/null || true
+
+  # ===========================================================================
+  # MOBILE — Flutter / Dart / Melos
+  # ===========================================================================
+
+  mobile:bootstrap:
+    desc: Bootstrap mobile workspace (melos bootstrap)
+    dir: mobile
+    sources:
+      - mobile/pubspec.lock
+      - mobile/pubspec.yaml
+      - mobile/melos.yaml
+      - mobile/apps/*/pubspec.yaml
+      - mobile/packages/*/pubspec.yaml
+    status:
+      - test -d .dart_tool
+    preconditions:
+      - sh: command -v flutter
+        msg: "flutter is required — install from https://flutter.dev"
+      - sh: command -v melos
+        msg: "melos is required — install via dart pub global activate melos"
+    cmds:
+      - melos bootstrap
+
+  mobile:run:
+    desc: "Run a mobile app [task mobile:run -- photos|auth|locker]"
+    dir: mobile
+    deps: [mobile:bootstrap]
+    cmds:
+      - melos run run:{{.APP}}:apk
+
+  mobile:build:
+    desc: "Build a mobile app APK [task mobile:build -- photos|auth|locker]"
+    dir: mobile
+    deps: [mobile:bootstrap]
+    cmds:
+      - melos run build:{{.APP}}:apk
+
+  mobile:codegen:
+    desc: Generate Rust bindings (flutter_rust_bridge)
+    dir: mobile
+    deps: [mobile:bootstrap]
+    preconditions:
+      - sh: command -v cargo
+        msg: "cargo is required — install from https://rustup.rs"
+    cmds:
+      - melos run codegen:rust
+
+  mobile:lint:
+    desc: Run Flutter static analysis
+    dir: mobile
+    deps: [mobile:bootstrap]
+    sources:
+      - mobile/apps/**/*.dart
+      - mobile/packages/**/*.dart
+      - mobile/analysis_options.yaml
+    cmds:
+      - flutter analyze
+
+  mobile:format:
+    desc: Format all Dart code
+    dir: mobile
+    cmds:
+      - dart format .
+
+  mobile:clean:
+    desc: Clean all mobile build artifacts
+    dir: mobile
+    preconditions:
+      - sh: command -v melos
+        msg: "melos is required — install via dart pub global activate melos"
+    cmds:
+      - melos run clean:all
+
+  # ===========================================================================
+  # DESKTOP — Electron / Yarn
+  # ===========================================================================
+
+  desktop:install:
+    desc: Install desktop dependencies
+    dir: desktop
+    sources:
+      - desktop/yarn.lock
+      - desktop/package.json
+    status:
+      - test -d node_modules
+    preconditions:
+      - sh: command -v yarn
+        msg: "yarn is required — install via corepack or npm"
+    cmds:
+      - yarn install --frozen-lockfile
+
+  desktop:dev:
+    desc: Start desktop dev (Electron + Next.js)
+    dir: desktop
+    deps: [desktop:install]
+    cmds:
+      - yarn dev
+
+  desktop:build:
+    desc: Build desktop app
+    dir: desktop
+    deps: [desktop:install]
+    sources:
+      - desktop/src/**/*
+      - desktop/package.json
+      - desktop/tsconfig.json
+      - desktop/electron-builder.yml
+      - desktop/yarn.lock
+    generates:
+      - desktop/app/**/*
+      - desktop/dist/**/*
+    cmds:
+      - yarn build
+
+  desktop:lint:
+    desc: Lint desktop code
+    dir: desktop
+    deps: [desktop:install]
+    sources:
+      - desktop/src/**/*
+      - desktop/package.json
+      - desktop/tsconfig.json
+      - desktop/yarn.lock
+    cmds:
+      - yarn lint
+
+  desktop:clean:
+    desc: Clean desktop build artifacts
+    cmds:
+      - rm -rf desktop/node_modules desktop/app desktop/dist
+      - rm -f desktop/out
+
+  # ===========================================================================
+  # CLI — Go
+  # ===========================================================================
+
+  cli:install:
+    desc: Download CLI Go dependencies
+    dir: cli
+    sources:
+      - cli/go.mod
+      - cli/go.sum
+    preconditions:
+      - sh: command -v go
+        msg: "go is required — install from https://go.dev"
+    cmds:
+      - go mod download
+
+  cli:build:
+    desc: Build the CLI binary
+    dir: cli
+    deps: [cli:install]
+    sources:
+      - cli/cmd/**/*.go
+      - cli/pkg/**/*.go
+      - cli/internal/**/*.go
+      - cli/main.go
+      - cli/go.mod
+      - cli/go.sum
+    generates:
+      - cli/bin/ente
+    preconditions:
+      - sh: command -v go
+        msg: "go is required — install from https://go.dev"
+    cmds:
+      - go build -o bin/ente main.go
+
+  cli:clean:
+    desc: Clean CLI build artifacts
+    cmds:
+      - rm -rf cli/bin cli/dist
+
+  # ===========================================================================
+  # DOCS — VitePress / Yarn
+  # ===========================================================================
+
+  docs:install:
+    desc: Install docs dependencies
+    dir: docs
+    sources:
+      - docs/yarn.lock
+      - docs/package.json
+    status:
+      - test -d node_modules
+    preconditions:
+      - sh: command -v yarn
+        msg: "yarn is required — install via corepack or npm"
+    cmds:
+      - yarn install --frozen-lockfile
+
+  docs:dev:
+    desc: Start docs dev server (VitePress)
+    dir: docs
+    deps: [docs:install]
+    cmds:
+      - yarn dev
+
+  docs:build:
+    desc: Build docs for production
+    dir: docs
+    deps: [docs:install]
+    sources:
+      - docs/docs/**/*.md
+      - docs/docs/.vitepress/config.ts
+      - docs/docs/.vitepress/sidebar.ts
+      - docs/docs/.vitepress/theme/**/*
+      - docs/yarn.lock
+      - docs/package.json
+    generates:
+      - docs/docs/.vitepress/dist/**/*
+    cmds:
+      - yarn build
+
+  docs:format:
+    desc: Format docs with Prettier
+    dir: docs
+    deps: [docs:install]
+    cmds:
+      - yarn pretty
+
+  docs:format-check:
+    desc: Check docs formatting (no write)
+    dir: docs
+    deps: [docs:install]
+    sources:
+      - docs/docs/**/*.md
+      - docs/docs/.vitepress/**/*
+    cmds:
+      - yarn pretty:check
+
+  docs:clean:
+    desc: Clean docs build artifacts
+    cmds:
+      - rm -rf docs/node_modules docs/docs/.vitepress/dist docs/docs/.vitepress/cache
+
+  # ===========================================================================
+  # RUST — Cargo (independent crates, per-crate tasks run in parallel)
+  # ===========================================================================
+
+  rust:build:
+    desc: Build all Rust crates (debug)
+    deps: [rust:build:core, rust:build:cli, rust:build:photos]
+
+  rust:build:core:
+    internal: true
+    dir: rust/core
+    sources:
+      - rust/core/src/**/*.rs
+      - rust/core/Cargo.toml
+      - rust/core/Cargo.lock
+    preconditions:
+      - sh: command -v cargo
+        msg: "cargo is required — install from https://rustup.rs"
+    cmds:
+      - cargo build
+
+  rust:build:cli:
+    internal: true
+    dir: rust/cli
+    sources:
+      - rust/cli/src/**/*.rs
+      - rust/cli/Cargo.toml
+      - rust/cli/Cargo.lock
+    preconditions:
+      - sh: command -v cargo
+        msg: "cargo is required — install from https://rustup.rs"
+    cmds:
+      - cargo build
+
+  rust:build:photos:
+    internal: true
+    dir: rust/photos
+    sources:
+      - rust/photos/src/**/*.rs
+      - rust/photos/Cargo.toml
+    preconditions:
+      - sh: command -v cargo
+        msg: "cargo is required — install from https://rustup.rs"
+    cmds:
+      - cargo build
+
+  rust:build-release:
+    desc: Build all Rust crates (release)
+    deps: [rust:build-release:core, rust:build-release:cli, rust:build-release:photos]
+
+  rust:build-release:core:
+    internal: true
+    dir: rust/core
+    preconditions:
+      - sh: command -v cargo
+        msg: "cargo is required — install from https://rustup.rs"
+    cmds:
+      - cargo build --release
+
+  rust:build-release:cli:
+    internal: true
+    dir: rust/cli
+    preconditions:
+      - sh: command -v cargo
+        msg: "cargo is required — install from https://rustup.rs"
+    cmds:
+      - cargo build --release
+
+  rust:build-release:photos:
+    internal: true
+    dir: rust/photos
+    preconditions:
+      - sh: command -v cargo
+        msg: "cargo is required — install from https://rustup.rs"
+    cmds:
+      - cargo build --release
+
+  rust:test:
+    desc: Test all Rust crates
+    deps: [rust:test:core, rust:test:cli, rust:test:photos]
+
+  rust:test:core:
+    internal: true
+    dir: rust/core
+    preconditions:
+      - sh: command -v cargo
+        msg: "cargo is required — install from https://rustup.rs"
+    cmds:
+      - cargo test
+
+  rust:test:cli:
+    internal: true
+    dir: rust/cli
+    preconditions:
+      - sh: command -v cargo
+        msg: "cargo is required — install from https://rustup.rs"
+    cmds:
+      - cargo test
+
+  rust:test:photos:
+    internal: true
+    dir: rust/photos
+    preconditions:
+      - sh: command -v cargo
+        msg: "cargo is required — install from https://rustup.rs"
+    cmds:
+      - cargo test
+
+  rust:lint:
+    desc: Lint all Rust crates (clippy)
+    deps: [rust:lint:core, rust:lint:cli, rust:lint:photos]
+
+  rust:lint:core:
+    internal: true
+    dir: rust/core
+    sources:
+      - rust/core/src/**/*.rs
+      - rust/core/Cargo.toml
+    preconditions:
+      - sh: command -v cargo
+        msg: "cargo is required — install from https://rustup.rs"
+    cmds:
+      - cargo clippy -- -D warnings
+
+  rust:lint:cli:
+    internal: true
+    dir: rust/cli
+    sources:
+      - rust/cli/src/**/*.rs
+      - rust/cli/Cargo.toml
+    preconditions:
+      - sh: command -v cargo
+        msg: "cargo is required — install from https://rustup.rs"
+    cmds:
+      - cargo clippy -- -D warnings
+
+  rust:lint:photos:
+    internal: true
+    dir: rust/photos
+    sources:
+      - rust/photos/src/**/*.rs
+      - rust/photos/Cargo.toml
+    preconditions:
+      - sh: command -v cargo
+        msg: "cargo is required — install from https://rustup.rs"
+    cmds:
+      - cargo clippy -- -D warnings
+
+  rust:fmt:
+    desc: Format all Rust code
+    deps: [rust:fmt:core, rust:fmt:cli, rust:fmt:photos]
+
+  rust:fmt:core:
+    internal: true
+    dir: rust/core
+    preconditions:
+      - sh: command -v cargo
+        msg: "cargo is required — install from https://rustup.rs"
+    cmds:
+      - cargo fmt
+
+  rust:fmt:cli:
+    internal: true
+    dir: rust/cli
+    preconditions:
+      - sh: command -v cargo
+        msg: "cargo is required — install from https://rustup.rs"
+    cmds:
+      - cargo fmt
+
+  rust:fmt:photos:
+    internal: true
+    dir: rust/photos
+    preconditions:
+      - sh: command -v cargo
+        msg: "cargo is required — install from https://rustup.rs"
+    cmds:
+      - cargo fmt
+
+  rust:fmt-check:
+    desc: Check Rust formatting (no write)
+    deps: [rust:fmt-check:core, rust:fmt-check:cli, rust:fmt-check:photos]
+
+  rust:fmt-check:core:
+    internal: true
+    dir: rust/core
+    sources:
+      - rust/core/src/**/*.rs
+    preconditions:
+      - sh: command -v cargo
+        msg: "cargo is required — install from https://rustup.rs"
+    cmds:
+      - cargo fmt --check
+
+  rust:fmt-check:cli:
+    internal: true
+    dir: rust/cli
+    sources:
+      - rust/cli/src/**/*.rs
+    preconditions:
+      - sh: command -v cargo
+        msg: "cargo is required — install from https://rustup.rs"
+    cmds:
+      - cargo fmt --check
+
+  rust:fmt-check:photos:
+    internal: true
+    dir: rust/photos
+    sources:
+      - rust/photos/src/**/*.rs
+    preconditions:
+      - sh: command -v cargo
+        msg: "cargo is required — install from https://rustup.rs"
+    cmds:
+      - cargo fmt --check
+
+  rust:clean:
+    desc: Clean all Rust build artifacts
+    deps: [rust:clean:core, rust:clean:cli, rust:clean:photos]
+
+  rust:clean:core:
+    internal: true
+    dir: rust/core
+    cmds:
+      - cargo clean
+
+  rust:clean:cli:
+    internal: true
+    dir: rust/cli
+    cmds:
+      - cargo clean
+
+  rust:clean:photos:
+    internal: true
+    dir: rust/photos
+    cmds:
+      - cargo clean
+
+  # ===========================================================================
+  # AGGREGATE TASKS
+  # ===========================================================================
+
+  install:
+    desc: Install dependencies for all components
+    deps:
+      - web:install
+      - server:install
+      - desktop:install
+      - cli:install
+      - docs:install
+      - mobile:bootstrap
+
+  build:
+    desc: Build all components
+    deps:
+      - web:build
+      - server:build
+      - desktop:build
+      - cli:build
+      - docs:build
+      - rust:build
+
+  lint:
+    desc: Lint all components
+    deps:
+      - web:lint
+      - server:lint
+      - desktop:lint
+      - mobile:lint
+      - rust:lint
+      - rust:fmt-check
+      - docs:format-check
+
+  test:
+    desc: Run tests for all components
+    deps:
+      - web:test
+      - server:test
+      - rust:test
+
+  format:
+    desc: Format code in all components
+    deps:
+      - docs:format
+      - rust:fmt
+      - mobile:format
+
+  clean:
+    desc: Clean all build artifacts
+    cmds:
+      - ./clean.sh -y

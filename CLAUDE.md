@@ -11,17 +11,17 @@ Root reference guide for the Ente monorepo. For component-specific guidance, see
 
 ## Quick Navigation Map
 
-| To work on...            | Go to...                | CLAUDE.md                        |
-| ------------------------ | ----------------------- | -------------------------------- |
-| Web apps (Photos, Auth, etc.) | `web/`             | `web/CLAUDE.md`                  |
-| Mobile apps (Flutter)    | `mobile/`               | `mobile/apps/photos/CLAUDE.md`, `mobile/apps/locker/CLAUDE.md` |
-| Desktop app (Electron)   | `desktop/`              | —                                |
-| API server ("Museum")    | `server/`               | `server/CLAUDE.md`               |
-| CLI tool                 | `cli/`                  | —                                |
-| Shared Rust core         | `rust/`                 | —                                |
-| User-facing docs site    | `docs/`                 | `docs/CLAUDE.md`, `docs/docs/CLAUDE.md` |
-| E2EE architecture docs   | `architecture/`         | —                                |
-| Infrastructure / workers | `infra/`                | —                                |
+| To work on...                 | Go to...        | CLAUDE.md                                                      |
+| ----------------------------- | --------------- | -------------------------------------------------------------- |
+| Web apps (Photos, Auth, etc.) | `web/`          | `web/CLAUDE.md`                                                |
+| Mobile apps (Flutter)         | `mobile/`       | `mobile/apps/photos/CLAUDE.md`, `mobile/apps/locker/CLAUDE.md` |
+| Desktop app (Electron)        | `desktop/`      | —                                                              |
+| API server ("Museum")         | `server/`       | `server/CLAUDE.md`                                             |
+| CLI tool                      | `cli/`          | —                                                              |
+| Shared Rust core              | `rust/`         | —                                                              |
+| User-facing docs site         | `docs/`         | `docs/CLAUDE.md`, `docs/docs/CLAUDE.md`                        |
+| E2EE architecture docs        | `architecture/` | —                                                              |
+| Infrastructure / workers      | `infra/`        | —                                                              |
 
 ---
 
@@ -54,80 +54,105 @@ ente/
 
 ## Technology Stack
 
-| Component | Language     | Framework/Runtime         | Key Dependencies                              |
-| --------- | ------------ | ------------------------- | --------------------------------------------- |
-| Server    | Go 1.23      | Gin                       | PostgreSQL, AWS SDK (S3), SRP, Stripe, Firebase |
-| Web       | TypeScript   | Next.js 15, React 19, MUI 7 | libsodium-wrappers, Yarn 1.22                |
-| Mobile    | Dart/Flutter | Flutter 3.32.8            | Melos, sqlite_async, ONNX Runtime, FFmpeg     |
-| Desktop   | TypeScript   | Electron 41               | electron-builder, ONNX, FFmpeg                |
-| CLI       | Go 1.23      | Cobra                     | go-keyring, go-resty                          |
-| Rust      | Rust         | tokio, wasm-bindgen       | libsodium, UniFFI, Flutter Rust Bridge        |
-| Docs      | Markdown     | VitePress 1.6             | Yarn                                          |
+| Component | Language     | Framework/Runtime           | Key Dependencies                                |
+| --------- | ------------ | --------------------------- | ----------------------------------------------- |
+| Server    | Go 1.23      | Gin                         | PostgreSQL, AWS SDK (S3), SRP, Stripe, Firebase |
+| Web       | TypeScript   | Next.js 15, React 19, MUI 7 | libsodium-wrappers, Yarn 1.22                   |
+| Mobile    | Dart/Flutter | Flutter 3.32.8              | Melos, sqlite_async, ONNX Runtime, FFmpeg       |
+| Desktop   | TypeScript   | Electron 41                 | electron-builder, ONNX, FFmpeg                  |
+| CLI       | Go 1.23      | Cobra                       | go-keyring, go-resty                            |
+| Rust      | Rust         | tokio, wasm-bindgen         | libsodium, UniFFI, Flutter Rust Bridge          |
+| Docs      | Markdown     | VitePress 1.6               | Yarn                                            |
 
 ---
 
 ## Development Commands
 
+A root `Taskfile.yml` provides unified commands across all components. Requires [Task](https://taskfile.dev) v3+. See `TASKFILE.md` for full documentation and common workflows.
+
+```bash
+task                        # List all available tasks
+task install                # Install deps for all components
+task build                  # Build everything
+task lint                   # Lint everything
+task test                   # Run all tests
+task clean                  # Clean all build artifacts
+```
+
 ### Web (`web/`)
 
 ```bash
-yarn install                # Install deps (Yarn 1.22)
-yarn dev:photos             # Photos on :3000
-yarn dev:accounts           # Accounts on :3001
-yarn dev:albums             # Albums on :3002
-yarn dev:auth               # Auth on :3003
-yarn dev:cast               # Cast on :3004
-yarn dev:share              # Share on :3005
-yarn dev:embed              # Embed on :3006
-yarn dev:ensu               # Ensu on :3007
-yarn dev:paste              # Paste on :3008
-yarn dev:locker             # Locker on :3009
-yarn dev:memories           # Memories on :3010
-yarn dev:twoof3             # TwoOf3 on :3009
-yarn dev:payments           # Payments (workspace dev)
-yarn build                  # Build Photos (alias)
-yarn build:<app>            # Build specific app
-yarn lint                   # Format + lint + typecheck
-yarn lint-fix               # Auto-fix lint issues
+task web:install            # Install deps for web workspace
+task web:dev                # Photos on :3000 (default)
+task web:dev -- auth        # Auth on :3003
+task web:dev -- locker      # Locker on :3009
+task web:build              # Build Photos
+task web:build -- <app>     # Build specific app
+task web:build-wasm         # Build Rust WASM package
+task web:lint               # Format + lint + typecheck
+task web:lint-fix           # Auto-fix lint issues
+task web:test               # Run WASM package tests
 ```
 
 ### Mobile (`mobile/`)
 
 ```bash
-melos bootstrap             # Link all local packages
-flutter run -t lib/main.dart --flavor independent   # Run Photos
-dart format .               # Format Dart code
-flutter analyze             # Static analysis (must pass before commit)
+task mobile:bootstrap       # Link all local packages
+task mobile:run             # Run Photos on device
+task mobile:run -- auth     # Run Auth
+task mobile:build           # Build Photos APK
+task mobile:lint            # Static analysis (must pass before commit)
+task mobile:format          # Format Dart code
+task mobile:codegen         # Regenerate Rust bindings
 ```
 
 ### Server (`server/`)
 
 ```bash
-docker compose up --build   # Local dev cluster (Museum + Postgres + MinIO)
-go build -o bin/museum ./cmd/museum   # Build server binary
+task server:install         # Download Go modules
+task server:up              # Local dev cluster (Museum + Postgres + MinIO)
+task server:up-d            # Start in background
+task server:down            # Stop the stack
+task server:logs            # Tail container logs
+task server:db              # Open psql shell to dev database
+task server:build           # Build server binary
+task server:dev             # Start with hot reload (air)
+task server:lint            # go vet + staticcheck
+task server:test            # Run Go tests
 ```
 
 ### Desktop (`desktop/`)
 
 ```bash
-yarn install
-yarn build-renderer         # Build Next.js Photos app
-yarn build-main             # Compile TS + electron-builder
+task desktop:install        # Install dependencies
+task desktop:dev            # Start Electron + Next.js dev
+task desktop:build          # Full build (renderer + electron-builder)
+task desktop:lint           # prettier + eslint + tsc
 ```
 
 ### CLI (`cli/`)
 
 ```bash
-go build -o bin/ente main.go   # Build CLI binary
+task cli:install            # Install dependencies
+task cli:build              # Build CLI binary
 ```
 
 ### Docs (`docs/`)
 
 ```bash
-yarn install
-yarn dev                    # Dev server on :5173
-yarn build                  # Production build
-yarn pretty                 # Format with Prettier
+task docs:install           # Install dependencies
+task docs:dev               # Dev server on :5173
+task docs:build             # Production build
+task docs:format            # Format with Prettier
+```
+
+### Rust (`rust/`)
+
+```bash
+task rust:build             # Build all crates (debug)
+task rust:test              # Run all tests
+task rust:lint              # clippy with -D warnings
+task rust:fmt               # Format all Rust code
 ```
 
 ---
@@ -139,12 +164,14 @@ yarn pretty                 # Format with Prettier
 All data is encrypted client-side before leaving the device. The server stores only encrypted data and has zero knowledge of contents.
 
 **Key hierarchy:**
+
 1. **masterKey** — generated on signup, never leaves device unencrypted
 2. **keyEncryptionKey (KEK)** — derived from user password via Argon2 (min 128MB memory)
 3. **collectionKey** — per-album/folder, encrypted with masterKey
 4. **fileKey** — per-file, encrypted with collectionKey
 
 **Crypto primitives** (via libsodium / Rust ente-core):
+
 - XChaCha20-Poly1305 (secretbox / file streams)
 - X25519 (key exchange for sharing)
 - Argon2 (password-based key derivation)
@@ -155,6 +182,7 @@ All data is encrypted client-side before leaving the device. The server stores o
 ### Authentication
 
 Multi-layer auth implemented via SRP (Secure Remote Password):
+
 1. Email verification (OTP)
 2. SRP — password never sent in plaintext
 3. Optional: WebAuthn/passkeys, TOTP, email MFA
@@ -201,17 +229,17 @@ rust/core/ (ente-core)
 
 ### Core Server Tables
 
-| Table                    | Purpose                                    |
-| ------------------------ | ------------------------------------------ |
-| `users`                  | User accounts                              |
-| `files`                  | Encrypted photo/file metadata              |
-| `collections`            | Albums/folders                             |
-| `collection_shares`      | E2EE sharing between users                 |
-| `key_attributes`         | Encrypted key material (KEK params, etc.)  |
-| `tokens`                 | Session tokens                             |
-| `otts`                   | One-time tokens (email OTP)                |
-| `memory_shares`          | Public memory share metadata (E2EE keys, access tokens, 7-day TTL) |
-| `memory_share_files`     | Files within a memory share (position, per-file encrypted keys) |
+| Table                | Purpose                                                            |
+| -------------------- | ------------------------------------------------------------------ |
+| `users`              | User accounts                                                      |
+| `files`              | Encrypted photo/file metadata                                      |
+| `collections`        | Albums/folders                                                     |
+| `collection_shares`  | E2EE sharing between users                                         |
+| `key_attributes`     | Encrypted key material (KEK params, etc.)                          |
+| `tokens`             | Session tokens                                                     |
+| `otts`               | One-time tokens (email OTP)                                        |
+| `memory_shares`      | Public memory share metadata (E2EE keys, access tokens, 7-day TTL) |
+| `memory_share_files` | Files within a memory share (position, per-file encrypted keys)    |
 
 ---
 
@@ -220,6 +248,7 @@ rust/core/ (ente-core)
 Quickstart: `docker compose up` in `server/` (Museum + Postgres + MinIO on port 8080).
 
 Detailed guides in `docs/docs/self-hosting/`:
+
 - Docker Compose: `installation/quickstart.md`
 - Kubernetes/Helm: `guides/photos-k8s-helm.md`
 - Configuration: `installation/config.md` (museum.yaml reference)
@@ -255,10 +284,10 @@ Mobile/desktop apps: tap onboarding screen 7 times to access developer settings 
 
 ```bash
 # Terminal 1: Server
-cd server && docker compose up --build
+task server:up
 
 # Terminal 2: Web
-cd web && yarn install && yarn dev
+task web:dev
 
 # Mobile: point to local server via developer settings
 ```
@@ -267,7 +296,7 @@ cd web && yarn install && yarn dev
 
 ## Critical Gotchas
 
-1. **No unified monorepo tool** — each component manages its own deps (Yarn, Melos, Go modules, Cargo). There is no `turbo`, `nx`, or `lerna`.
+1. **Task runner at root** — a `Taskfile.yml` provides unified commands across all components (see `TASKFILE.md`). Each component still manages its own deps (Yarn, Melos, Go modules, Cargo).
 2. **Database backup is essential** — PostgreSQL contains encrypted key material. Without it, S3 data is permanently inaccessible.
 3. **S3 bucket names are hardcoded** in server config (`b2-eu-cen`, `wasabi-eu-central-2-v3`, `scw-eu-fr-v3`). Names are arbitrary; any S3 provider works.
 4. **HTTPS required** — Museum rejects HTTP in production.
@@ -283,7 +312,7 @@ cd web && yarn install && yarn dev
 ## Security & Audits
 
 - Externally audited by **Cure53**, **Symbolic Software**, and **Fallible**
-- Security vulnerabilities: email security@ente.com
+- Security vulnerabilities: email <security@ente.com>
 - Architecture docs: `architecture/README.md`
 - Crypto implementation: `rust/core/docs/crypto.md`
 
@@ -291,8 +320,8 @@ cd web && yarn install && yarn dev
 
 ## External Resources
 
-- **Product site:** https://ente.com
-- **Documentation:** https://ente.com/help
-- **GitHub:** https://github.com/ente-io/ente
-- **Discord:** https://ente.com/discord
-- **Discussions:** https://github.com/ente-io/ente/discussions
+- **Product site:** <https://ente.com>
+- **Documentation:** <https://ente.com/help>
+- **GitHub:** <https://github.com/ente-io/ente>
+- **Discord:** <https://ente.com/discord>
+- **Discussions:** <https://github.com/ente-io/ente/discussions>
