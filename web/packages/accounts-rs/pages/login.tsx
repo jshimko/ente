@@ -3,6 +3,7 @@ import { LoginContents } from "ente-accounts-rs/components/LoginContents";
 import { savedPartialLocalUser } from "ente-accounts-rs/services/accounts-db";
 import { LoadingIndicator } from "ente-base/components/loaders";
 import { customAPIHost } from "ente-base/origins";
+import { isRegistrationDisabled } from "ente-base/server-config";
 import { useRouter } from "next/router";
 import React, { useCallback, useEffect, useState } from "react";
 
@@ -138,11 +139,13 @@ import React, { useCallback, useEffect, useState } from "react";
 const Page: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [host, setHost] = useState<string | undefined>(undefined);
+    const [registrationDisabled, setRegistrationDisabled] = useState(false);
 
     const router = useRouter();
 
     useEffect(() => {
         void customAPIHost().then(setHost);
+        void isRegistrationDisabled().then(setRegistrationDisabled);
         if (savedPartialLocalUser()?.email) void router.replace("/verify");
         setLoading(false);
     }, [router]);
@@ -153,7 +156,7 @@ const Page: React.FC = () => {
         <LoadingIndicator />
     ) : (
         <AccountsPageContents>
-            <LoginContents {...{ host, onSignUp }} />
+            <LoginContents {...{ host, onSignUp, registrationDisabled }} />
         </AccountsPageContents>
     );
 };

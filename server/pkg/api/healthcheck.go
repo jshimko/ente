@@ -21,6 +21,13 @@ type HealthCheckHandler struct {
 	DB *sql.DB
 }
 
+type pingResponse struct {
+	Message              string `json:"message"`
+	ID                   string `json:"id,omitempty"`
+	Host                 string `json:"host,omitempty"`
+	RegistrationDisabled bool   `json:"registrationDisabled,omitempty"`
+}
+
 func (h *HealthCheckHandler) Ping(c *gin.Context) {
 	res := 0
 	err := h.DB.QueryRowContext(c, `SELECT 1`).Scan(&res)
@@ -28,11 +35,13 @@ func (h *HealthCheckHandler) Ping(c *gin.Context) {
 		handler.Error(c, stacktrace.Propagate(err, ""))
 		return
 	}
-	result := make(map[string]string)
-	result["message"] = "pong"
-	result["id"] = os.Getenv("GIT_COMMIT")
+	result := pingResponse{
+		Message:              "pong",
+		ID:                   os.Getenv("GIT_COMMIT"),
+		RegistrationDisabled: viper.GetBool("internal.disable-registration"),
+	}
 	if c.Query("host") != "" {
-		result["host"], _ = os.Hostname()
+		result.Host, _ = os.Hostname()
 	}
 	c.JSON(http.StatusOK, result)
 }

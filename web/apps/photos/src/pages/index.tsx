@@ -14,6 +14,10 @@ import {
 import log from "ente-base/log";
 import { customAPIHost } from "ente-base/origins";
 import {
+    isRegistrationDisabled,
+    resetRegistrationDisabledCache,
+} from "ente-base/server-config";
+import {
     masterKeyFromSession,
     updateSessionFromElectronSafeStorageIfNeeded,
 } from "ente-base/session";
@@ -31,13 +35,15 @@ const Page: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [showLogin, setShowLogin] = useState(true);
     const [host, setHost] = useState<string | undefined>(undefined);
+    const [registrationDisabled, setRegistrationDisabled] = useState(false);
 
     const router = useRouter();
 
-    const refreshHost = useCallback(
-        () => void customAPIHost().then(setHost),
-        [],
-    );
+    const refreshHost = useCallback(() => {
+        resetRegistrationDisabledCache();
+        void customAPIHost().then(setHost);
+        void isRegistrationDisabled().then(setRegistrationDisabled);
+    }, []);
 
     useEffect(() => {
         void (async () => {
@@ -138,13 +144,18 @@ const Page: React.FC = () => {
                         <Slideshow />
                     </SlideshowPanel>
                     <MobileBox>
+                        {!registrationDisabled && (
+                            <FocusVisibleButton
+                                color="accent"
+                                onClick={() => router.push("/signup")}
+                            >
+                                {t("new_to_ente")}
+                            </FocusVisibleButton>
+                        )}
                         <FocusVisibleButton
-                            color="accent"
-                            onClick={() => router.push("/signup")}
-                        >
-                            {t("new_to_ente")}
-                        </FocusVisibleButton>
-                        <FocusVisibleButton
+                            color={
+                                registrationDisabled ? "accent" : undefined
+                            }
                             onClick={() => router.push("/login")}
                         >
                             {t("existing_user")}
@@ -161,9 +172,9 @@ const Page: React.FC = () => {
                         ]}
                     >
                         <Stack sx={{ width: "320px", py: 4, gap: 4 }}>
-                            {showLogin ? (
+                            {showLogin || registrationDisabled ? (
                                 <LoginContents
-                                    {...{ host }}
+                                    {...{ host, registrationDisabled }}
                                     onSignUp={() => setShowLogin(false)}
                                 />
                             ) : (
