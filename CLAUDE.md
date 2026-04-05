@@ -4,8 +4,8 @@ Root reference guide for the Ente monorepo. For component-specific guidance, see
 
 **Purpose:** Fully open-source, end-to-end encrypted cloud platform with three products: Ente Photos, Ente Auth (2FA), and Ente Locker (document storage).
 
-**Documented:** 2026-04-03
-**Commit:** a875a1703f
+**Documented:** 2026-04-04
+**Commit:** 0618f522ee
 
 ---
 
@@ -47,7 +47,8 @@ ente/
 │   └── uniffi/       # UniFFI bindings for native platforms
 ├── docs/             # VitePress documentation site (ente.com/help)
 ├── architecture/     # E2EE architecture docs and SVG diagrams
-└── infra/            # ML models, Cloudflare Workers, deployment services
+├── infra/            # ML models, Cloudflare Workers, deployment services
+└── Tiltfile          # Local K8s dev with Tilt (orbstack)
 ```
 
 ---
@@ -57,7 +58,7 @@ ente/
 | Component | Language     | Framework/Runtime           | Key Dependencies                                |
 | --------- | ------------ | --------------------------- | ----------------------------------------------- |
 | Server    | Go 1.23      | Gin                         | PostgreSQL, AWS SDK (S3), SRP, Stripe, Firebase |
-| Web       | TypeScript   | Next.js 15, React 19, MUI 7 | libsodium-wrappers, Yarn 1.22                   |
+| Web       | TypeScript   | Next.js 15, React 19, MUI 7 | libsodium-wrappers, Yarn 1.22, Turborepo         |
 | Mobile    | Dart/Flutter | Flutter 3.32.8              | Melos, sqlite_async, ONNX Runtime, FFmpeg       |
 | Desktop   | TypeScript   | Electron 41                 | electron-builder, ONNX, FFmpeg                  |
 | CLI       | Go 1.23      | Cobra                       | go-keyring, go-resty                            |
@@ -76,6 +77,7 @@ task install                # Install deps for all components
 task build                  # Build everything
 task lint                   # Lint everything
 task test                   # Run all tests
+task format                 # Format all code
 task clean                  # Clean all build artifacts
 ```
 

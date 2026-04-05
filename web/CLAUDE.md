@@ -4,8 +4,8 @@ Reference guide for the Ente web monorepo (`web/`). For root-level context see `
 
 **Purpose:** 13 web applications and 9 shared packages for Ente's E2EE cloud platform — Photos, Auth, Locker, and more.
 
-**Documented:** 2026-04-03
-**Commit:** a875a1703f
+**Documented:** 2026-04-04
+**Commit:** 0618f522ee
 
 ---
 
@@ -31,16 +31,17 @@ yarn dev:twoof3         # TwoOf3 on :3009
 yarn dev:memories       # Memories on :3010
 yarn dev:payments       # Payments (Vite, port 3001)
 
-# Production builds (all invoke yarn build:wasm first, except payments/twoof3)
-yarn build              # Photos (alias)
-yarn build:<app>        # Build specific app
+# Production builds (Turbo handles WASM and dependency ordering automatically)
+yarn build              # Build all apps (via turbo build)
+yarn build:<app>        # Build specific app (via turbo build --filter=<app>)
 
 # Code quality — ONLY run when explicitly requested or before commits
-yarn lint               # prettier + eslint + tsc (concurrent via concurrently)
-yarn lint-fix           # Auto-fix formatting and lint issues
+yarn lint               # turbo (eslint + tsc) then prettier --check
+yarn lint-fix           # turbo (eslint + tsc) then prettier --write
 
 # Tests (WASM package only)
 yarn test               # Vitest — crypto, auth, URL tests
+yarn test:run           # Run tests (non-watch mode)
 ```
 
 Use plain `yarn install` only when intentionally updating dependencies and
@@ -147,7 +148,7 @@ ente-accounts       (JS-based auth, older — uses libsodium directly)
 | `token.ts`                  | Auth token storage (IndexedDB)                                                |
 | `origins.ts`                | API endpoint URLs (`apiOrigin()`, `uploaderOrigin()`, `albumsAppOrigin()`)    |
 | `app.ts`                    | App name detection, `isDesktop` flag                                          |
-| `i18n.ts`                   | i18next setup (51 locales in `locales/`)                                      |
+| `i18n.ts`                   | i18next setup (49 locale directories, 20 supported)                           |
 | `kv.ts`                     | Key-value storage abstraction                                                 |
 | `context.ts`                | `BaseContext` — logout, dialog, error handling                                |
 | `next.config.base.js`       | Shared Next.js config (static export, WASM, Emotion, env vars)                |
@@ -226,10 +227,11 @@ Build-injected (via `next.config.base.js`): `gitSHA`, `appName`, `isDesktop`, `d
 ## Build System
 
 - **Yarn 1.22.22** workspaces: `apps/*` + `packages/*`
-- **WASM builds first** — most `build:*` and `dev:*` scripts run `yarn build:wasm` before Next.js
+- **Turborepo** (`turbo.json`) manages task dependencies, ordering, and caching across all workspaces
+- **WASM builds automatically** — Turbo's `dependsOn: ["^build"]` ensures WASM builds before dependent apps
 - **WASM build**: `wasm-pack build --target bundler` → outputs `packages/wasm/pkg/`
 - **Next.js base config**: `packages/base/next.config.base.js` — static export, Emotion, WASM support
-- **Lint**: `concurrently` runs prettier, eslint, and tsc in parallel across all workspaces
+- **Lint**: `turbo lint tsc` runs eslint and tsc across workspaces (cached), then `prettier --check` runs separately
 - **Prettier**: tabWidth 4, organize-imports plugin, packagejson plugin
 - **TypeScript**: strict mode, ES2020 target, bundler module resolution
 - **Transpiled packages**: `ente-base`, `ente-utils`, `ente-new`, `ente-wasm`
@@ -265,11 +267,11 @@ yarn build:wasm    # Rebuilds packages/wasm/pkg/ from Rust source
 
 ## Gotchas
 
-1. **WASM must build first** — all dev/build scripts (except payments, twoof3) run `yarn build:wasm` as a prerequisite
+1. **WASM must build first** — Turbo handles this automatically via `dependsOn: ["^build"]` in `turbo.json`
 2. **payments uses Vite, not Next.js** — different build system, no `next.config.js`
 3. **accounts vs accounts-rs** — two auth implementations; `accounts-rs` (Rust WASM) is newer, used by locker; `accounts` (JS libsodium) is used by most other apps
 4. **tabWidth 4** — Prettier is configured for 4-space indentation
 5. **Static exports only** — all Next.js apps use `output: "export"`, no server-side rendering
 6. **Legacy env vars fail the build** — `NEXT_PUBLIC_ENTE_ACCOUNTS_URL` and `NEXT_PUBLIC_ENTE_FAMILY_URL` cause build failures with instructions to use museum config instead
-7. **Lint is concurrent** — `yarn lint` runs prettier, eslint, and tsc in parallel; failures from one don't stop the others
+7. **Lint is two-phase** — `yarn lint` first runs `turbo lint tsc` (eslint + typecheck across workspaces, cached), then runs `prettier --check` separately
 8. **ente-new is temporary** — shared photos/albums code that will eventually be split into separate concerns

@@ -170,6 +170,3 @@ find /out/albums -name '*.js' |
 EOF
 
 RUN chmod +x /docker-entrypoint.d/90-replace-ente-env.sh
-
-# run as non-root user by default
-USER nginx
