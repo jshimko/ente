@@ -68,6 +68,16 @@ class _StorageCardWidgetState extends State<StorageCardWidget> {
       return GestureDetector(
         behavior: HitTestBehavior.translucent,
         onTap: () async {
+          final isFamilyMember = (userDetails?.isPartOfFamily() ?? false) &&
+              !((userDetails?.currentFamilyMember()?.isAdmin) ?? false);
+          if (isFamilyMember) {
+            await billingService.launchFamilyPortal(
+              context,
+              userDetails!,
+              refreshOnOpen: false,
+            );
+            return;
+          }
           // ignore: unawaited_futures
           Navigator.of(context).push(
             MaterialPageRoute(
