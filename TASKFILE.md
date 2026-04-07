@@ -99,18 +99,24 @@ task mobile:run -- locker   # Run Locker
 task mobile:build           # Build Photos APK
 task mobile:build -- auth   # Build Auth APK
 
+# Android sideloading (self-hosting)
+task mobile:apk             # Build release APK (independent flavor, arm64)
+task mobile:apk -- https://your-server.example.com  # Bake in a custom server endpoint
+task mobile:sideload        # Install built APK on connected device via ADB
+
 # Code quality
 task mobile:lint            # Run flutter analyze
 task mobile:format          # Format all Dart code
 
 # Code generation
 task mobile:codegen         # Regenerate flutter_rust_bridge bindings
+task mobile:submodules      # Initialize git submodules (one-time)
 
 # Cleanup
 task mobile:clean           # flutter clean in all projects
 ```
 
-**Caching:** `mobile:bootstrap` skips if lock files haven't changed and `.dart_tool` exists. `mobile:lint` skips if Dart source files haven't changed.
+**Caching:** `mobile:bootstrap` skips if lock files haven't changed and `.dart_tool` exists. `mobile:lint` skips if Dart source files haven't changed. `mobile:submodules` skips if all submodules are already initialized.
 
 ## Desktop (Electron)
 

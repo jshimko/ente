@@ -48,10 +48,13 @@ info() {
     echo -e "\n${BOLD}${GREEN}==> $1${NC}"
 }
 
-# Remove directories (rm -rf), skipping non-existent paths
+# Remove directories (rm -rf), skipping non-existent paths and git-tracked content
 rm_dir() {
     for p in "$@"; do
         if [[ -e "$p" || -L "$p" ]]; then
+            if [[ -d "$p" && -n "$(git -C "$REPO_ROOT" ls-files "$p" 2>/dev/null)" ]]; then
+                continue
+            fi
             if [[ "$DRY_RUN" == true ]]; then
                 echo -e "  ${YELLOW}[dry-run]${NC} rm -rf $p"
             else
@@ -62,10 +65,13 @@ rm_dir() {
     done
 }
 
-# Remove files (rm -f), skipping non-existent paths
+# Remove files (rm -f), skipping non-existent paths and git-tracked files
 rm_file() {
     for p in "$@"; do
         if [[ -e "$p" || -L "$p" ]]; then
+            if git -C "$REPO_ROOT" ls-files --error-unmatch "$p" >/dev/null 2>&1; then
+                continue
+            fi
             if [[ "$DRY_RUN" == true ]]; then
                 echo -e "  ${YELLOW}[dry-run]${NC} rm -f $p"
             else
@@ -80,26 +86,34 @@ rm_file() {
 find_rm_dirs() {
     local base="$1" name="$2"
     [[ -d "$base" ]] || return 0
-    if [[ "$DRY_RUN" == true ]]; then
-        find "$base" -type d -name "$name" -prune 2>/dev/null | while read -r d; do
+    find "$base" -type d -name "$name" -prune 2>/dev/null | while read -r d; do
+        if [[ -n "$(git -C "$REPO_ROOT" ls-files "$d" 2>/dev/null)" ]]; then
+            continue
+        fi
+        if [[ "$DRY_RUN" == true ]]; then
             echo -e "  ${YELLOW}[dry-run]${NC} rm -rf $d"
-        done
-    else
-        find "$base" -type d -name "$name" -prune -exec rm -rf {} + 2>/dev/null || true
-    fi
+        else
+            rm -rf "$d"
+            echo "  removed $d"
+        fi
+    done
 }
 
 # Find and remove files by name pattern under a base path
 find_rm_files() {
     local base="$1" pattern="$2"
     [[ -d "$base" ]] || return 0
-    if [[ "$DRY_RUN" == true ]]; then
-        find "$base" -type f -name "$pattern" 2>/dev/null | while read -r f; do
+    find "$base" -type f -name "$pattern" 2>/dev/null | while read -r f; do
+        if git -C "$REPO_ROOT" ls-files --error-unmatch "$f" >/dev/null 2>&1; then
+            continue
+        fi
+        if [[ "$DRY_RUN" == true ]]; then
             echo -e "  ${YELLOW}[dry-run]${NC} rm -f $f"
-        done
-    else
-        find "$base" -type f -name "$pattern" -delete 2>/dev/null || true
-    fi
+        else
+            rm -f "$f"
+            echo "  removed $f"
+        fi
+    done
 }
 
 # --- Cleaning sections ---
@@ -119,14 +133,7 @@ clean_global() {
     find_rm_dirs "$REPO_ROOT" "Pods"
     find_rm_dirs "$REPO_ROOT" "__pycache__"
 
-    # .cargo/ dirs except the committed rust/.cargo/
-    if [[ "$DRY_RUN" == true ]]; then
-        find "$REPO_ROOT" -type d -name ".cargo" -not -path "*/rust/.cargo" -prune 2>/dev/null | while read -r d; do
-            echo -e "  ${YELLOW}[dry-run]${NC} rm -rf $d"
-        done
-    else
-        find "$REPO_ROOT" -type d -name ".cargo" -not -path "*/rust/.cargo" -prune -exec rm -rf {} + 2>/dev/null || true
-    fi
+    find_rm_dirs "$REPO_ROOT" ".cargo"
 
     # Files
     find_rm_files "$REPO_ROOT" ".DS_Store"
@@ -160,7 +167,7 @@ clean_desktop() {
 
     rm_dir "$desk/app"
     rm_dir "$desk/dist"
-    rm_file "$desk/out"  # symlink
+    rm_dir "$desk/out"
     rm_file "$desk/.env"
     find_rm_files "$desk" ".env.*.local"
     # Downloaded binaries in build/

@@ -3,6 +3,8 @@ name: ente_workspace
 
 # Location of your packages, using glob patterns.
 # Melos will find any pubspec.yaml file inside these directories.
+sdkPath: .fvm/flutter_sdk
+
 packages:
   - apps/*
   - packages/*

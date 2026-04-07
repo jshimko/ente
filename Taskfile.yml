@@ -244,9 +244,22 @@ tasks:
   # MOBILE — Flutter / Dart / Melos
   # ===========================================================================
 
+  mobile:fvm-install:
+    desc: Install the Flutter SDK version pinned in .fvmrc
+    dir: mobile
+    preconditions:
+      - sh: command -v fvm
+        msg: "fvm is required — install via dart pub global activate fvm"
+    status:
+      - test -L .fvm/flutter_sdk
+    cmds:
+      - fvm install
+      - fvm exec flutter precache
+
   mobile:bootstrap:
     desc: Bootstrap mobile workspace (melos bootstrap)
     dir: mobile
+    deps: [mobile:fvm-install]
     sources:
       - mobile/pubspec.lock
       - mobile/pubspec.yaml
@@ -256,8 +269,6 @@ tasks:
     status:
       - test -d .dart_tool
     preconditions:
-      - sh: command -v flutter
-        msg: "flutter is required — install from https://flutter.dev"
       - sh: command -v melos
         msg: "melos is required — install via dart pub global activate melos"
     cmds:
@@ -296,13 +307,13 @@ tasks:
       - mobile/packages/**/*.dart
       - mobile/analysis_options.yaml
     cmds:
-      - flutter analyze
+      - fvm exec flutter analyze
 
   mobile:format:
     desc: Format all Dart code
     dir: mobile
     cmds:
-      - dart format .
+      - fvm exec dart format .
 
   mobile:clean:
     desc: Clean all mobile build artifacts
@@ -312,6 +323,36 @@ tasks:
         msg: "melos is required — install via dart pub global activate melos"
     cmds:
       - melos run clean:all
+
+  mobile:submodules:
+    desc: Initialize git submodules (one-time setup)
+    status:
+      - git submodule status --recursive | grep -qv '^-'
+    cmds:
+      - git submodule update --init --recursive
+
+  mobile:apk:
+    desc: "Build release APK for sideloading [task mobile:apk -- https://your-server.example.com]"
+    dir: mobile/apps/photos
+    deps: [mobile:submodules, mobile:codegen]
+    vars:
+      ENDPOINT_FLAG: '{{if .CLI_ARGS}}--dart-define=endpoint={{.CLI_ARGS}}{{end}}'
+    preconditions:
+      - sh: command -v fvm
+        msg: "fvm is required — install via dart pub global activate fvm"
+    cmds:
+      - fvm exec flutter build apk {{.ENDPOINT_FLAG}} --dart-define=cronetHttpNoPlay=true --release --flavor independent --target-platform android-arm64
+
+  mobile:sideload:
+    desc: Install the built APK on a connected device via ADB
+    dir: mobile/apps/photos
+    preconditions:
+      - sh: command -v adb
+        msg: "adb is required — install via Android SDK platform-tools"
+      - sh: test -f build/app/outputs/flutter-apk/app-independent-release.apk
+        msg: "APK not found — run 'task mobile:apk' first"
+    cmds:
+      - adb install build/app/outputs/flutter-apk/app-independent-release.apk
 
   # ===========================================================================
   # DESKTOP — Electron / Yarn

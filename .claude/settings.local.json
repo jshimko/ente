@@ -50,7 +50,12 @@
       "Bash(task --version)",
       "Bash(task:*)",
       "Bash(command -v flutter)",
-      "Bash(command -v melos)"
+      "Bash(command -v melos)",
+      "Bash(flutter --version)",
+      "Bash(command -v fvm)",
+      "Bash(fvm --version)",
+      "Bash(fvm install:*)",
+      "Bash(fvm exec:*)"
     ]
   }
 }
