@@ -482,7 +482,7 @@ packages:
   ente_qr:
     dependency: "direct main"
     description:
-      path: "plugins/qr"
+      path: "../photos/plugins/ente_qr"
       relative: true
     source: path
     version: "0.0.1"

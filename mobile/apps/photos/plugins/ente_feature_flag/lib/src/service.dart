@@ -57,6 +57,8 @@ class FlagService {
 
   bool get internalOrBetaUser => internalUser || betaUser;
 
+  bool get enableContact => internalUser;
+
   bool get enableStripe => Platform.isIOS ? false : flags.enableStripe;
 
   bool get isSelfHosted => flags.isSelfHosted;

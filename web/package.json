@@ -39,8 +39,7 @@
         "dev:twoof3": "turbo dev --filter=twoof3",
         "lint": "turbo lint tsc && prettier --check --log-level warn .",
         "lint-fix": "turbo lint tsc && prettier --write --log-level warn .",
-        "test": "turbo test --filter=ente-wasm",
-        "test:run": "turbo test --filter=ente-wasm -- run"
+        "test": "turbo test --filter=ente-wasm --filter=ente-contacts-web"
     },
     "resolutions": {
         "@types/react": "^19.2.2",
