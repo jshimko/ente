@@ -2,6 +2,7 @@
     "name": "share",
     "version": "0.0.0",
     "private": true,
+    "workspaces": { "nohoist": ["hugeicons-react"] },
     "scripts": {
         "build": "next build --no-lint",
         "build:post": "rm -f out/404.html",
@@ -11,7 +12,7 @@
     },
     "dependencies": {
         "ente-base": "*",
-        "hugeicons-react": "^0.3.0"
+        "hugeicons-react": "^0.4.0"
     },
     "devDependencies": {
         "ente-build-config": "*"

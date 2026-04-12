@@ -581,6 +581,11 @@
   resolved "https://registry.yarnpkg.com/@hugeicons/core-free-icons/-/core-free-icons-1.2.1.tgz#c741eaa8bbf1453e9282a64c19a8bbcc8cef5f19"
   integrity sha512-ho0QdGMkgL+kt+QsZocCsKvJou1rfyVQWARrxIhNLi+9tCKayUUtD9jlHgioaRphmskSl84TxrDm9Ae0G4Uu1g==
 
+"@hugeicons/core-free-icons@^3.1.1":
+  version "3.3.0"
+  resolved "https://registry.yarnpkg.com/@hugeicons/core-free-icons/-/core-free-icons-3.3.0.tgz#48be8d9a38a6a4192ef340d7a9ff238597567080"
+  integrity sha512-qYyr4JQ2eQIHTSTbITvnJvs6ERNK64D9gpwZnf2IyuG0exzqfyABLO/oTB71FB3RZPfu1GbwycdiGSo46apjMQ==
+
 "@hugeicons/react@^1.0.5", "@hugeicons/react@^1.1.4":
   version "1.1.6"
   resolved "https://registry.yarnpkg.com/@hugeicons/react/-/react-1.1.6.tgz#18482015b150d8559f0c45a4303286ccb287d9f5"
@@ -2904,10 +2909,13 @@ html-url-attributes@^3.0.0:
   resolved "https://registry.yarnpkg.com/html-url-attributes/-/html-url-attributes-3.0.1.tgz#83b052cd5e437071b756cd74ae70f708870c2d87"
   integrity sha512-ol6UPyBWqsrO6EJySPz2O7ZSr856WDrEzM5zMqp+FJJLGMW35cLYmmZnl0vztAZxRUoNZJFTCohfjuIJ8I4QBQ==
 
-hugeicons-react@^0.3.0:
-  version "0.3.1"
-  resolved "https://registry.yarnpkg.com/hugeicons-react/-/hugeicons-react-0.3.1.tgz#5de1de573ca5832a9c676566ae6ebd96618b97a5"
-  integrity sha512-4c+tVcewlJVB2cJI754Tp6rxnMW1+c6CFvHmnEonXW7HL8NUUHxZgXWw5OirWr3Fwgsq9PNQrr+Y2MAcpbRCPA==
+hugeicons-react@^0.4.0:
+  version "0.4.0"
+  resolved "https://registry.yarnpkg.com/hugeicons-react/-/hugeicons-react-0.4.0.tgz#269835bdfa42ba2bd65208065722ffdf4d6c3771"
+  integrity sha512-HA2UI3VkDd1dNi9P4JGjaMODdGEs4QVMwQcc34W0aoGHptdsIex/756Jik4GFYN/023jGFKNVvQKhx2IpZtV+g==
+  dependencies:
+    "@hugeicons/core-free-icons" "^3.1.1"
+    "@hugeicons/react" "^1.1.4"
 
 i18next-resources-to-backend@^1.2.1:
   version "1.2.1"
@@ -3350,17 +3358,17 @@ libheif-js@^1.19.8:
   resolved "https://registry.yarnpkg.com/libheif-js/-/libheif-js-1.19.8.tgz#fcbf3571ef28b6199dd052bc4d2cb7cce56ddf06"
   integrity sha512-vQJWusIxO7wavpON1dusciL8Go9jsIQ+EUrckauFYAiSTjcmLAsuJh3SszLpvkwPci3JcL41ek2n+LUZGFpPIQ==
 
-libsodium-sumo@^0.7.16:
-  version "0.7.16"
-  resolved "https://registry.yarnpkg.com/libsodium-sumo/-/libsodium-sumo-0.7.16.tgz#85037acdf9029296373bf2a9f078930a723eedb5"
-  integrity sha512-x6atrz2AdXCJg6G709x9W9TTJRI6/0NcL5dD0l5GGVqNE48UJmDsjO4RUWYTeyXXUpg+NXZ2SHECaZnFRYzwGA==
+libsodium-sumo@0.7.15, libsodium-sumo@^0.7.15:
+  version "0.7.15"
+  resolved "https://registry.yarnpkg.com/libsodium-sumo/-/libsodium-sumo-0.7.15.tgz#91c1d863fe3fbce6d6b9db1aadaa622733a1d007"
+  integrity sha512-5tPmqPmq8T8Nikpm1Nqj0hBHvsLFCXvdhBFV7SGOitQPZAA6jso8XoL0r4L7vmfKXr486fiQInvErHtEvizFMw==
 
-libsodium-wrappers-sumo@^0.7.15:
-  version "0.7.16"
-  resolved "https://registry.yarnpkg.com/libsodium-wrappers-sumo/-/libsodium-wrappers-sumo-0.7.16.tgz#53838cabe5d99768a3c070bdb65cd0043e0d0bfd"
-  integrity sha512-gR0JEFPeN3831lB9+ogooQk0KH4K5LSMIO5Prd5Q5XYR2wHFtZfPg0eP7t1oJIWq+UIzlU4WVeBxZ97mt28tXw==
+libsodium-wrappers-sumo@0.7.15, libsodium-wrappers-sumo@^0.7.15:
+  version "0.7.15"
+  resolved "https://registry.yarnpkg.com/libsodium-wrappers-sumo/-/libsodium-wrappers-sumo-0.7.15.tgz#0ef2a99b4b17e8385aa7e6850593660dbaf5fb40"
+  integrity sha512-aSWY8wKDZh5TC7rMvEdTHoyppVq/1dTSAeAR7H6pzd6QRT3vQWcT5pGwCotLcpPEOLXX6VvqihSPkpEhYAjANA==
   dependencies:
-    libsodium-sumo "^0.7.16"
+    libsodium-sumo "^0.7.15"
 
 libsodium-wrappers@*:
   version "0.8.3"

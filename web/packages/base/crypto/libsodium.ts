@@ -499,6 +499,7 @@ export const decryptBlobBytes = async (
         await bytes(encryptedData),
         null,
     );
+    if (!pullResult) throw new Error("Failed to decrypt blob");
     return pullResult.message;
 };
 
@@ -554,7 +555,9 @@ export const decryptStreamBytes = async (
         const pullResult = sodium.crypto_secretstream_xchacha20poly1305_pull(
             pullState,
             buffer,
+            null,
         );
+        if (!pullResult) throw new Error("Failed to decrypt chunk");
         decryptedChunks.push(pullResult.message);
         tag = pullResult.tag;
         bytesRead += chunkSize;
@@ -608,7 +611,9 @@ export const decryptStreamChunk = async (
     const pullResult = sodium.crypto_secretstream_xchacha20poly1305_pull(
         pullState,
         data,
+        null,
     );
+    if (!pullResult) throw new Error("Failed to decrypt stream chunk");
     return pullResult.message;
 };
 

@@ -54,18 +54,18 @@ tasks:
     dir: web
     deps: [web:install]
     sources:
-      - web/apps/{{.APP}}/src/**/*
-      - web/apps/{{.APP}}/package.json
-      - web/apps/{{.APP}}/next.config.*
-      - web/apps/{{.APP}}/tsconfig.json
+      - web/apps/**/src/**/*
+      - web/apps/**/package.json
+      - web/apps/**/next.config.*
+      - web/apps/**/tsconfig.json
       - web/packages/*/src/**/*
       - web/packages/*/package.json
       - web/yarn.lock
     generates:
-      - web/apps/{{.APP}}/out/**/*
-      - web/apps/{{.APP}}/dist/**/*
+      - web/apps/**/out/**/*
+      - web/apps/**/dist/**/*
     cmds:
-      - yarn build:{{.APP}}
+      - yarn turbo build
 
   web:build-wasm:
     desc: Build the WASM package from Rust source
@@ -338,7 +338,7 @@ tasks:
     dir: mobile/apps/photos
     deps: [mobile:submodules, mobile:codegen]
     vars:
-      ENDPOINT_FLAG: '{{if .CLI_ARGS}}--dart-define=endpoint={{.CLI_ARGS}}{{end}}'
+      ENDPOINT_FLAG: "{{if .CLI_ARGS}}--dart-define=endpoint={{.CLI_ARGS}}{{end}}"
     preconditions:
       - sh: command -v fvm
         msg: "fvm is required — install via dart pub global activate fvm"
@@ -566,7 +566,12 @@ tasks:
 
   rust:build-release:
     desc: Build all Rust crates (release)
-    deps: [rust:build-release:core, rust:build-release:cli, rust:build-release:photos]
+    deps:
+      [
+        rust:build-release:core,
+        rust:build-release:cli,
+        rust:build-release:photos,
+      ]
 
   rust:build-release:core:
     internal: true

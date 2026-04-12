@@ -69,6 +69,7 @@ docker_build(
     only=[
         'web/',
         'rust/.cargo/',
+        'rust/contacts/',
         'rust/core/',
     ],
 )

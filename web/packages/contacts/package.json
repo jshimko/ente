@@ -5,7 +5,11 @@
     "main": "./index.ts",
     "types": "./index.ts",
     "scripts": {
-        "test": "vitest --run"
+        "build": "tsc",
+        "test": "vitest --run",
+        "tsc": "tsc --noEmit",
+        "lint": "eslint .",
+        "lint-fix": "eslint . --fix"
     },
     "dependencies": {
         "ente-base": "*",

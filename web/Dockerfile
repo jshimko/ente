@@ -41,6 +41,7 @@ COPY web/packages/accounts/package.json web/packages/accounts/package.json
 COPY web/packages/accounts-rs/package.json web/packages/accounts-rs/package.json
 COPY web/packages/base/package.json web/packages/base/package.json
 COPY web/packages/build-config/package.json web/packages/build-config/package.json
+COPY web/packages/contacts/package.json web/packages/contacts/package.json
 COPY web/packages/gallery/package.json web/packages/gallery/package.json
 COPY web/packages/media/package.json web/packages/media/package.json
 COPY web/packages/new/package.json web/packages/new/package.json
@@ -55,7 +56,9 @@ RUN --mount=type=cache,id=yarn,target=/opt/yarn \
 
 # build and cache wasm first
 COPY rust/core/ ./rust/core
+COPY rust/contacts/ ./rust/contacts
 COPY web/packages/build-config/ ./web/packages/build-config
+COPY web/packages/contacts/ ./web/packages/contacts
 COPY web/packages/wasm/ ./web/packages/wasm
 WORKDIR /build/web
 RUN --mount=type=cache,id=cargo-registry,target=/root/.cargo/registry \
@@ -65,14 +68,8 @@ RUN --mount=type=cache,id=cargo-registry,target=/root/.cargo/registry \
     --mount=type=cache,id=wasm-turbo,target=packages/wasm/.turbo \
     yarn build:wasm
 
-# add remaining packages (skip wasm — already built above) and all apps
-COPY web/packages/accounts/ packages/accounts/
-COPY web/packages/accounts-rs/ packages/accounts-rs/
-COPY web/packages/base/ packages/base/
-COPY web/packages/gallery/ packages/gallery/
-COPY web/packages/media/ packages/media/
-COPY web/packages/new/ packages/new/
-COPY web/packages/utils/ packages/utils/
+# add remaining packages and apps
+COPY web/packages/ packages/
 COPY web/apps/ apps/
 
 # build all apps in parallel with Turborepo
