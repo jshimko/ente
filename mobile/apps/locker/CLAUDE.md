@@ -105,12 +105,15 @@ Locker is one of multiple apps in `/apps/` that share common packages from `/pac
 - `ente_accounts` - User authentication and account management
 - `ente_base` - Base utilities and common code
 - `ente_configuration` - App configuration (extended by local `services/configuration.dart`)
-- `ente_crypto_dart` - Encryption/decryption primitives
+- `ente_crypto_api` - Abstract crypto interface (key derivation, encrypt/decrypt)
+- `ente_crypto_dart_adapter` - Dart implementation of crypto API (adapter pattern)
 - `ente_events` - Event bus for app-wide events
+- `ente_icons` - Custom icon font (EnteIcons.ttf)
 - `ente_legacy` - Legacy services (e.g., emergency contacts)
 - `ente_lock_screen` - App lock/authentication UI
 - `ente_logging` - Structured logging
 - `ente_network` - HTTP client and network layer
+- `ente_pure_utils` - Pure Dart utilities (email validation, crypto, path)
 - `ente_sharing` - Sharing models and utilities
 - `ente_strings` - Localization strings
 - `ente_ui` - Common UI components and theming
@@ -141,11 +144,20 @@ All major services follow the singleton pattern with `instance` getters:
 5. **LinksService** (`lib/services/files/links/links_service.dart`)
    - Handles shareable public links for collections
 
+6. **FavoritesService** (`lib/services/favorites_service.dart`)
+   - Manages favorite/starred items in collections
+
+7. **InfoFileService** (`lib/services/info_file_service.dart`)
+   - Handles structured information files (notes, credentials, contacts, records)
+
+8. **UpdateService** (`lib/services/update_service.dart`)
+   - Checks for app updates
+
 ### Database Layer
 
 SQLite databases managed via `sqflite`:
-- **CollectionDB** (`lib/services/collections/collections_db.dart`) - Collections and files
-- **TrashDB** (`lib/services/trash/trash_db.dart`) - Deleted items
+- **LockerDB** (`lib/services/db/locker_db.dart`) - Collections and files
+- **TrashTable** (`lib/services/db/trash_table.dart`) - Deleted items
 
 Both databases track sync times to enable incremental syncing.
 
@@ -167,7 +179,14 @@ The app uses an event bus (`ente_events` package) for cross-component communicat
 - `CollectionPage` - Single collection view with files
 - `AllCollectionsPage` - Full collection list (by type: home/incoming/outgoing)
 - `SettingsPage` - User settings and account management
-- `InformationPage` - Add/edit structured information (notes, credentials, contacts, etc.)
+- `TrashPage` - Deleted files management
+- `OnboardingPage` - First-run onboarding flow
+- `DeleteAccountPage` - Account deletion workflow
+- `BaseInfoPage` - Abstract base for structured information pages, with subclasses:
+  - `AccountCredentialsPage` - Account credential entry/editing
+  - `PersonalNotePage` - Personal note entry/editing
+  - `EmergencyContactPage` - Emergency contact entry/editing
+  - `PhysicalRecordsPage` - Physical records entry/editing
 
 **Key UI Patterns:**
 - Pages extend `StatefulWidget` with mixins for reusable behavior (e.g., `SearchMixin`)
@@ -189,7 +208,8 @@ Files and collections are end-to-end encrypted:
 - **Collection keys:** Encrypted with user's master key
 - **File keys:** Encrypted with collection key
 - `CryptoHelper` (`utils/crypto_helper.dart`) provides key derivation utilities
-- `ente_crypto_dart` provides low-level encryption primitives
+- `ente_crypto_api` provides abstract crypto interface
+- `ente_crypto_dart_adapter` provides Dart implementation of the crypto API
 
 ### Platform-Specific Code
 
@@ -259,12 +279,6 @@ When referencing code locations in messages, use the format:
 ```
 lib/services/collections/collections_service.dart:123
 ```
-
-## Known TODOs
-
-From README.md:
-- Verify `PackageInfoUtil.getPackageName()` correctness on Linux and Windows
-- Update `file_url.dart` to download only via CF worker when necessary
 
 ## Common Gotchas
 

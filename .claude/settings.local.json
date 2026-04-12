@@ -55,7 +55,9 @@
       "Bash(command -v fvm)",
       "Bash(fvm --version)",
       "Bash(fvm install:*)",
-      "Bash(fvm exec:*)"
+      "Bash(fvm exec:*)",
+      "Bash(xargs -I {} basename {})",
+      "Read(//tmp/**)"
     ]
   }
 }

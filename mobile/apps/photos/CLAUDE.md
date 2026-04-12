@@ -4,8 +4,8 @@ Reference guide for the Ente Photos mobile app. For monorepo-wide guidance (shar
 
 **Purpose:** End-to-end encrypted photo backup and management app built with Flutter/Dart. Largest app in the Ente mobile monorepo (400+ dependencies, 50+ services, ML features, Rust FFI).
 
-**Documented:** 2026-04-05
-**Commit:** 9f38e62e09
+**Documented:** 2026-04-07
+**Commit:** d69552ba7c
 
 ---
 
@@ -135,7 +135,7 @@ Boot sequence:
 
 Background boot (Workmanager):
 
-1. `callbackDispatcher()` in `lib/main.dart` -- registered entry point
+1. `callbackDispatcher()` in `lib/utils/bg_task_utils.dart` -- registered entry point
 2. `_runMinimally()` -- minimal services: Config, Network, Sync, optional ML
 
 | File                                     | Purpose                                                      |
@@ -143,7 +143,7 @@ Background boot (Workmanager):
 | `lib/main.dart`                          | App entry point, background task dispatcher, sync scheduling |
 | `lib/app.dart`                           | Root widget (EnteApp), locale changes, deeplink routing      |
 | `lib/app_mode.dart`                      | Online/offline mode management                               |
-| `lib/service_locator.dart`               | All service singletons (30+ lazy getters)                    |
+| `lib/service_locator.dart`               | All service singletons (40+ lazy getters)                    |
 | `lib/core/configuration.dart`            | User config, encryption keys, secure storage (26KB)          |
 | `lib/core/network/network.dart`          | Dio HTTP clients (enteDio, nonEnteDio)                       |
 | `lib/core/network/ente_interceptor.dart` | Auth token injection, error handling                         |
@@ -154,7 +154,7 @@ Background boot (Workmanager):
 
 | Pattern          | Implementation                               | Access                                                  |
 | ---------------- | -------------------------------------------- | ------------------------------------------------------- |
-| Service Locator  | `lib/service_locator.dart`                   | `ServiceLocator.instance`, lazy getters at module level |
+| Service Locator  | `lib/service_locator.dart`                   | `ServiceLocator.instance`, 40+ lazy getters at module level |
 | Event Bus        | `lib/core/event_bus.dart`                    | `Bus.instance.on<T>().listen()` / `Bus.instance.fire()` |
 | Gateway Pattern  | `lib/gateways/` (11 subdirs)                 | Services -> Gateways -> Dio -> Museum API               |
 | SQLite DB Layer  | `lib/db/` (15 files)                         | `sqlite_async` with `SqlDbBase` mixin from `db/common/` |
@@ -241,36 +241,45 @@ All services in `lib/services/`. Most are singletons accessed via lazy getters i
 
 ### Account & Billing
 
-| Service        | File                                    | Purpose                         |
-| -------------- | --------------------------------------- | ------------------------------- |
-| UserService    | `services/account/user_service.dart`    | Authentication, user management |
-| BillingService | `services/account/billing_service.dart` | Subscription management         |
+| Service        | File                                      | Purpose                         |
+| -------------- | ----------------------------------------- | ------------------------------- |
+| UserService    | `services/account/user_service.dart`      | Authentication, user management |
+| BillingService | `services/account/billing_service.dart`   | Subscription management         |
+| PasskeyService | `services/account/passkey_service.dart`   | Passkey/WebAuthn authentication |
 
 ### Platform & System
 
-| Service              | File                                   | Purpose                      |
-| -------------------- | -------------------------------------- | ---------------------------- |
-| HomeWidgetService    | `services/home_widget_service.dart`    | Home screen widget sync      |
-| PushService          | `services/push_service.dart`           | Firebase push notifications  |
-| NotificationService  | `services/notification_service.dart`   | In-app notifications         |
-| UpdateService        | `services/update_service.dart`         | App update checking          |
-| WakeLockService      | `services/wake_lock_service.dart`      | Screen wake lock for uploads |
-| AppLifecycleService  | `services/app_lifecycle_service.dart`  | App lifecycle tracking       |
-| AppNavigationService | `services/app_navigation_service.dart` | Programmatic navigation      |
+| Service                    | File                                            | Purpose                            |
+| -------------------------- | ----------------------------------------------- | ---------------------------------- |
+| HomeWidgetService          | `services/home_widget_service.dart`             | Home screen widget sync            |
+| AlbumHomeWidgetService     | `services/album_home_widget_service.dart`       | Album data for home screen widget  |
+| MemoryHomeWidgetService    | `services/memory_home_widget_service.dart`      | Memory data for home screen widget |
+| PeopleHomeWidgetService    | `services/people_home_widget_service.dart`      | People data for home screen widget |
+| FamilyService              | `services/family_service.dart`                  | Family plan management             |
+| LocalAuthenticationService | `services/local_authentication_service.dart`    | Local biometric/PIN auth           |
+| PushService                | `services/push_service.dart`                    | Firebase push notifications        |
+| NotificationService        | `services/notification_service.dart`            | In-app notifications               |
+| UpdateService              | `services/update_service.dart`                  | App update checking                |
+| WakeLockService            | `services/wake_lock_service.dart`               | Screen wake lock for uploads       |
+| AppLifecycleService        | `services/app_lifecycle_service.dart`           | App lifecycle tracking             |
+| AppNavigationService       | `services/app_navigation_service.dart`          | Programmatic navigation            |
 
 ### Other
 
-| Service             | File                                    | Purpose                           |
-| ------------------- | --------------------------------------- | --------------------------------- |
-| EntityService       | `services/entity_service.dart`          | Collaborative entity operations   |
-| LocationService     | `services/location_service.dart`        | Location data extraction, mapping |
-| MagicCacheService   | `services/magic_cache_service.dart`     | Magic metadata caching (18KB)     |
-| StorageBonusService | `services/storage_bonus_service.dart`   | Referral storage tracking         |
-| RitualsService      | `services/rituals/rituals_service.dart` | Daily/recurring reminders         |
-| WrappedService      | `services/wrapped/wrapped_service.dart` | Year-end photo highlights         |
-| PermissionService   | `services/permission/service.dart`      | Permission management             |
-| LanguageService     | `services/language_service.dart`        | Language/locale management        |
-| RemoteAssetsService | `services/remote_assets_service.dart`   | Remote asset fetching             |
+| Service                      | File                                          | Purpose                           |
+| ---------------------------- | --------------------------------------------- | --------------------------------- |
+| EntityService                | `services/entity_service.dart`                | Collaborative entity operations   |
+| LocationService            | `services/location_service.dart`            | Location data extraction, mapping |
+| MagicCacheService          | `services/magic_cache_service.dart`         | Magic metadata caching (18KB)     |
+| StorageBonusService        | `services/storage_bonus_service.dart`       | Referral storage tracking         |
+| RitualsService             | `services/rituals/rituals_service.dart`     | Daily/recurring reminders         |
+| WrappedService             | `services/wrapped/wrapped_service.dart`     | Year-end photo highlights         |
+| PermissionService          | `services/permission/service.dart`          | Permission management             |
+| LanguageService            | `services/language_service.dart`            | Language/locale management        |
+| RemoteAssetsService        | `services/remote_assets_service.dart`       | Remote asset fetching             |
+| IsolatedFFmpegService      | `services/isolated_ffmpeg_service.dart`     | FFmpeg in isolated process        |
+| TextEmbeddingsCacheService | `services/text_embeddings_cache_service.dart` | Text embedding cache            |
+| VideoPreviewService        | `services/video_preview_service.dart`       | Video preview generation          |
 
 ---
 
@@ -339,7 +348,7 @@ All UI in `lib/ui/`.
 | `ui/rituals/`      | Reminders       | Daily/recurring reminders            |
 | `ui/tools/`        | Editing         | Image/video editing, app lock        |
 | `ui/actions/`      | Context menus   | File/album actions                   |
-| `ui/components/`   | Shared widgets  | 31 component subdirectories          |
+| `ui/components/`   | Shared widgets  | 7 component subdirectories           |
 | `ui/common/`       | Common widgets  | Theme-aware reusable components      |
 | `ui/growth/`       | Referrals       | Growth/referral UI                   |
 | `ui/notification/` | Notifications   | In-app notification UI               |
@@ -365,12 +374,13 @@ All UI in `lib/ui/`.
 | `EndpointUpdatedEvent`       | Server URL changed                        |
 | `BackupFoldersUpdatedEvent`  | Backup folder selection changed           |
 | `FileUploadedEvent`          | Individual file upload completed          |
+| `UserDetailsChangedEvent`    | User profile or family status changes     |
 
 ---
 
 ## Key Models Reference
 
-All models in `lib/models/` (25+ subdirectories).
+All models in `lib/models/` (18 subdirectories).
 
 | Model              | File                                    | Description                                      |
 | ------------------ | --------------------------------------- | ------------------------------------------------ |
@@ -396,7 +406,7 @@ lib/
 │   ├── cache/             # LRU maps, image/thumbnail/video caches
 │   ├── network/           # Dio HTTP clients, auth interceptor
 │   └── error-reporting/   # Sentry integration, super_logging
-├── services/              # Business logic (50+ services)
+├── services/              # Business logic (56+ services)
 │   ├── sync/              # Local, remote, trash sync
 │   ├── machine_learning/  # ML pipeline orchestration
 │   │   ├── face_ml/       # Face detection, recognition, clustering, person
@@ -409,8 +419,8 @@ lib/
 │   ├── filedata/          # File metadata service
 │   ├── filter/            # Search filter implementations
 │   └── permission/        # Permission management
-├── ui/                    # UI components (24 subdirectories)
-├── models/                # Data models (25+ subdirectories)
+├── ui/                    # UI components (21 subdirectories)
+├── models/                # Data models (18 subdirectories)
 ├── db/                    # SQLite database layer (15 files)
 │   ├── common/            # SqlDbBase mixin, migration helpers
 │   └── ml/                # ML-specific database
@@ -522,6 +532,7 @@ Located in `plugins/`. These are NOT shared with Auth/Locker.
 - **Rust**: Flutter Rust Bridge for performance-critical operations
 - **Network**: `dio` with `native_dio_adapter`
 - **State**: `event_bus` for pub/sub, `adaptive_theme` for theming
+- **Contacts**: `ente_contacts` shared package for contacts management
 
 ---
 

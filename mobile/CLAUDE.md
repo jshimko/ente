@@ -2,7 +2,7 @@
 
 Reference guide for the Ente mobile monorepo workspace. For app-specific guidance, see the CLAUDE.md files linked in the navigation map below.
 
-**Purpose:** Flutter/Dart monorepo containing three Ente mobile apps (Photos, Auth, Locker) and 22+ shared packages, managed by Melos.
+**Purpose:** Flutter/Dart monorepo containing three Ente mobile apps (Photos, Auth, Locker) and 23 shared packages, managed by Melos.
 
 **Documented:** 2026-04-05
 **Commit:** 9f38e62e09
@@ -21,6 +21,7 @@ Reference guide for the Ente mobile monorepo workspace. For app-specific guidanc
 | Shared UI components           | `packages/ui/`                    | —                                |
 | Localization strings           | `packages/strings/`               | —                                |
 | Network / HTTP layer           | `packages/network/`               | —                                |
+| Contacts management            | `packages/contacts/`              | —                                |
 | Rust FFI bindings              | `packages/rust/`                  | —                                |
 | App configuration              | `packages/configuration/`         | —                                |
 | Photos-specific plugins        | `apps/photos/plugins/`            | —                                |
@@ -50,7 +51,7 @@ mobile/
 │   │   └── lib/             # Main Dart source
 │   └── locker/              # Secure document storage (v1.0.1+95)
 │       └── lib/             # Main Dart source
-├── packages/                # 22+ shared Dart packages (see reference below)
+├── packages/                # 23 shared Dart packages (see reference below)
 ├── native/                  # Native iOS/Android code (Swift, Kotlin)
 │   ├── android/             # Kotlin/Gradle modules
 │   └── darwin/              # Swift/Xcode projects
@@ -119,6 +120,7 @@ mobile/
 | `ente_accounts`    | `packages/accounts/`       | Auth flows (login, SRP, passkeys, 2FA, recovery)     |
 | `ente_lock_screen` | `packages/lock_screen/`    | Biometric auth, PIN entry, privacy screen            |
 | `ente_sharing`     | `packages/sharing/`        | Cryptographic sharing and share link generation      |
+| `ente_contacts`    | `packages/contacts/`       | Shared contacts client, cache, and Rust orchestration |
 | `ente_legacy`      | `packages/legacy/`         | Legacy services (emergency contacts, backwards compat)|
 
 ### Utilities
