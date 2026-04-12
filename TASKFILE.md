@@ -82,7 +82,7 @@ task server:clean           # Remove build artifacts
 
 ## Mobile (Photos, Auth, Locker — Flutter)
 
-**Prerequisites:** Flutter 3.32+, Melos, Dart
+**Prerequisites:** [fvm](https://fvm.app), Melos
 
 Mobile tasks accept an app name after `--`. Defaults to `photos` if omitted.
 
