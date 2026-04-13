@@ -6,6 +6,7 @@
 .DS_Store
 
 # Ignore CLAUDE.local.md files anywhere in the repository
+.claude/settings.local.json
 CLAUDE.local.md
 
 # Local cargo config / per-dev exports
