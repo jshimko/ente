@@ -2,10 +2,10 @@
 
 Reference guide for the Ente web monorepo (`web/`). For root-level context see `../CLAUDE.md`.
 
-**Purpose:** 13 web applications and 9 shared packages for Ente's E2EE cloud platform — Photos, Auth, Locker, and more.
+**Purpose:** 13 web applications and 10 shared packages for Ente's E2EE cloud platform — Photos, Auth, Locker, and more.
 
-**Documented:** 2026-04-04
-**Commit:** 0618f522ee
+**Documented:** 2026-04-13
+**Commit:** 918c6a1986
 
 ---
 
@@ -39,8 +39,8 @@ yarn build:<app>        # Build specific app (via turbo build --filter=<app>)
 yarn lint               # turbo (eslint + tsc) then prettier --check
 yarn lint-fix           # turbo (eslint + tsc) then prettier --write
 
-# Tests (WASM package only)
-yarn test               # Vitest — crypto, auth, URL tests
+# Tests (WASM + contacts packages)
+yarn test               # Vitest — crypto, auth, URL, contacts tests
 yarn test:run           # Run tests (non-watch mode)
 ```
 
@@ -62,7 +62,7 @@ reviewing the resulting `yarn.lock` changes.
 | `embed`    | 3006 | Next.js   | Embeddable photo viewer (iframe)                      |
 | `ensu`     | 3007 | Next.js   | AI chat interface (Wllama LLM, Tauri desktop)         |
 | `paste`    | 3008 | Next.js   | Clipboard/paste sharing with QR codes (static export) |
-| `locker`   | 3009 | Next.js   | Document storage (uses accounts-rs, multi-locale)     |
+| `locker`   | 3009 | Next.js   | Document storage (uses accounts-rs, contacts, multi-locale) |
 | `twoof3`   | 3009 | Next.js   | 2FA QR code generator                                 |
 | `memories` | 3010 | Next.js   | Photo memories/highlights viewer (static export)      |
 | `payments` | 3001 | **Vite**  | Stripe subscription management (**not** Next.js)      |
@@ -92,10 +92,13 @@ web/
 ├── packages/          # Shared code between apps
 │   ├── base/          # Core UI components, crypto, i18n
 │   ├── gallery/       # Photo gallery components
-│   ├── accounts/      # Account management
+│   ├── accounts/      # Account management (JS-based auth)
+│   ├── accounts-rs/   # Account management (WASM-based auth)
+│   ├── contacts/      # Contact management (WASM-based crypto)
 │   ├── media/         # Media processing (FFmpeg, image conversion)
 │   ├── utils/         # General utilities
 │   ├── new/           # A temporary place for code shared by photos and albums
+│   ├── wasm/          # Rust core crypto/auth compiled to WASM
 │   └── build-config/  # Shared build configuration
 │
 └── docs/          # Development documentation
@@ -114,6 +117,7 @@ web/
 | `new` (ente-new)                   | React/TS  | **Temporary** — shared photos/albums code (will be split later)              |
 | `accounts` (ente-accounts)         | React/TS  | Auth UI + SRP login (JS-based crypto via libsodium)                          |
 | `accounts-rs` (ente-accounts-rs)   | React/TS  | Auth UI + SRP login (Rust WASM crypto — newer, used by locker)               |
+| `contacts` (ente-contacts-web)     | React/TS  | Contact management, display resolution, avatar loading (WASM crypto)         |
 | `wasm` (ente-wasm)                 | Rust→WASM | Rust core crypto/auth compiled to WebAssembly via wasm-pack                  |
 | `build-config` (ente-build-config) | Config    | Shared tsconfig, eslint, prettier configs                                    |
 
@@ -134,6 +138,10 @@ ente-wasm           (Rust core → WASM, independent)
     ↑
 ente-accounts-rs    (WASM-based auth, newer)
 
+ente-base + ente-wasm
+    ↑
+ente-contacts-web   (contact sync, display, avatars)
+
 ente-accounts       (JS-based auth, older — uses libsodium directly)
 ```
 
@@ -141,7 +149,7 @@ ente-accounts       (JS-based auth, older — uses libsodium directly)
 
 | Module                      | Purpose                                                                       |
 | --------------------------- | ----------------------------------------------------------------------------- |
-| `http.ts`                   | Custom fetch wrapper with retry, `authenticatedRequestHeaders()`, `HTTPError` |
+| `http.ts`                   | HTTP client: `authenticatedRequestHeaders()`, `HTTPError`, `ensureOk`, retry helpers, error matchers |
 | `crypto/index.ts`           | High-level crypto API (delegates to `crypto/libsodium.ts` or worker)          |
 | `crypto/libsodium.ts`       | libsodium-wrappers-sumo bindings                                              |
 | `session.ts`                | Master key session management                                                 |
@@ -217,7 +225,7 @@ Crypto runs in Web Workers to avoid blocking the main thread.
 | `NEXT_PUBLIC_ENTE_ALBUMS_ENDPOINT`   | `https://albums.ente.io`   | Shared albums host |
 | `NEXT_PUBLIC_ENTE_PHOTOS_ENDPOINT`   | `https://web.ente.io`      | Photos app URL     |
 | `NEXT_PUBLIC_ENTE_SHARE_ENDPOINT`    | `https://share.ente.io`    | Locker/share app   |
-| `NEXT_PUBLIC_ENTE_MEMORIES_ENDPOINT` | `https://memories.ente.io` | Memories app       |
+| `NEXT_PUBLIC_ENTE_MEMORIES_ENDPOINT` | `https://ente.com`         | Memories app       |
 | `NEXT_PUBLIC_ENTE_OFFICIAL_ALBUMS_APP` | _(unset)_                  | Flag for official albums deployment |
 
 Build-injected (via `next.config.base.js`): `gitSHA`, `appName`, `isDesktop`, `desktopAppVersion`.
@@ -232,7 +240,7 @@ Build-injected (via `next.config.base.js`): `gitSHA`, `appName`, `isDesktop`, `d
 - **WASM build**: `wasm-pack build --target bundler` → outputs `packages/wasm/pkg/`
 - **Next.js base config**: `packages/base/next.config.base.js` — static export, Emotion, WASM support
 - **Lint**: `turbo lint tsc` runs eslint and tsc across workspaces (cached), then `prettier --check` runs separately
-- **Prettier**: tabWidth 4, organize-imports plugin, packagejson plugin
+- **Prettier**: tabWidth 4, `objectWrap: "collapse"` (locale JSON uses `"preserve"`), organize-imports plugin, packagejson plugin
 - **TypeScript**: strict mode, ES2020 target, bundler module resolution
 - **Transpiled packages**: `ente-base`, `ente-utils`, `ente-new`, `ente-wasm`
 

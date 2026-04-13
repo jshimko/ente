@@ -2,8 +2,8 @@
 
 Go API server powering all Ente clients (Photos, Auth, Locker). Handles authentication, E2EE key management, file metadata, billing, and multi-datacenter object replication.
 
-**Documented:** 2026-04-04
-**Commit:** 0618f522ee
+**Documented:** 2026-04-13
+**Commit:** 918c6a1986
 
 ---
 
@@ -11,12 +11,13 @@ Go API server powering all Ente clients (Photos, Auth, Locker). Handles authenti
 
 ```sh
 server/
-├── cmd/museum/main.go         # Entry point: config, DB, routing, cron jobs (~1,345 lines)
+├── cmd/museum/main.go         # Entry point: config, DB, routing, cron jobs (~1,377 lines)
 ├── ente/                      # Domain models & entities (pure data, no I/O)
 │   ├── user.go, file.go, collection.go, billing.go, errors.go, ...
 │   ├── jwt/                   # JWT claim types (PAYMENT, FAMILIES, ACCOUNTS)
 │   ├── cache/                 # User cache structures
 │   ├── cast/                  # Chromecast models
+│   ├── contact/               # Contact entity, attachment types and policies
 │   ├── data_cleanup/          # Data cleanup models
 │   ├── details/               # User details and Locker usage models
 │   ├── social/                # Comments, reactions, anonymous users
@@ -31,12 +32,14 @@ server/
 │   │   ├── data_cleanup/      # User data cleanup
 │   │   ├── email/             # Email notification controller
 │   │   ├── file_copy/         # File copy operations
+│   │   ├── contact/           # Contact lifecycle, attachment replication/deletion
 │   │   ├── lock/              # Distributed lock controller
 │   │   ├── usercache/         # User cache controller
 │   │   └── ...                # + domain-specific dirs/files (see Core API Domains)
 │   ├── repo/                  # Data access (raw SQL queries via database/sql)
 │   │   ├── public/            # Public access repos (collection links, file links, paste)
 │   │   ├── datacleanup/       # Data cleanup repo
+│   │   ├── contact/           # Contact data access
 │   │   ├── two_factor_recovery/ # 2FA recovery repo
 │   │   └── ...                # + domain-specific dirs/files (see Core API Domains)
 │   ├── middleware/             # Auth, rate limiting, CORS, logging, panic recovery
@@ -56,7 +59,7 @@ server/
 │       ├── wasabi/            # Wasabi compliance hold management
 │       ├── zoho/              # Zoho Zeptomail email API
 │       └── listmonk/          # Listmonk email marketing API
-├── migrations/                # 119 PostgreSQL migrations, 238 files with up/down (golang-migrate)
+├── migrations/                # 120 PostgreSQL migrations, 240 files with up/down (golang-migrate)
 ├── configurations/            # Environment YAML configs
 │   ├── base.yaml              # Base config (establishes key hierarchy)
 │   ├── local.yaml             # Dev defaults (port 8080, MinIO, stdout logging)
@@ -67,8 +70,8 @@ server/
 ├── scripts/                   # Deployment & test scripts
 ├── compose.yaml               # Docker dev cluster (Museum + Postgres + MinIO)
 ├── compose.test.yaml          # Docker test cluster
-├── Dockerfile                 # Multi-stage build (configurable via ARGs, defaults golang:1.26.1 → alpine:3.23)
-└── go.mod                     # Go 1.23, 38 direct dependencies
+├── Dockerfile                 # Multi-stage build (configurable via ARGs, defaults golang:1.26.1-alpine3.23 → alpine:3.23)
+└── go.mod                     # Go 1.23, 39 direct dependencies
 ```
 
 ---
@@ -105,7 +108,7 @@ S3 (3 DCs)       Encrypted file data (B2, Wasabi, Scaleway)
 
 | To find...                    | Look in...                                                 |
 | ----------------------------- | ---------------------------------------------------------- |
-| All HTTP routes               | `cmd/museum/main.go:504-986` (route registration)          |
+| All HTTP routes               | `cmd/museum/main.go:543-1011` (route registration)         |
 | A specific API handler        | `pkg/api/<domain>.go`                                      |
 | Business logic for a feature  | `pkg/controller/<domain>.go` or `pkg/controller/<domain>/` |
 | Database queries              | `pkg/repo/<domain>.go` or `pkg/repo/<domain>/`             |
@@ -126,7 +129,7 @@ S3 (3 DCs)       Encrypted file data (B2, Wasabi, Scaleway)
 | Email sending                 | `pkg/utils/email/email.go`                                 |
 | Billing plan definitions      | `pkg/utils/billing/`                                       |
 | DB migrations                 | `migrations/{number}_{name}.up.sql`                        |
-| Cron job schedules            | `cmd/museum/main.go:1128-1263`                             |
+| Cron job schedules            | `cmd/museum/main.go:1160-1294`                             |
 | Docker dev environment        | `compose.yaml`                                             |
 | Dev config defaults           | `configurations/local.yaml`                                |
 | Email HTML templates          | `mail-templates/`                                          |
@@ -229,29 +232,42 @@ Three payment providers: Stripe (US/India), Apple IAP, Google Play. Unified thro
 | Repo       | `pkg/repo/social/`                                                 |
 | Models     | `ente/social/`                                                     |
 
+### Contacts
+
+| Layer      | File                      |
+| ---------- | ------------------------- |
+| Handler    | `pkg/api/contact.go`      |
+| Controller | `pkg/controller/contact/` |
+| Repo       | `pkg/repo/contact/`       |
+| Models     | `ente/contact/`           |
+
+Key endpoints: `/contacts` (CRUD), `/contacts/diff`, `/contacts/:id/attachments/:type`, `/contacts/:id/profile-picture`, `/attachments/:type/upload-url`, `/attachments/:type/:attachmentID`
+
+Contacts support E2EE attachments (profile pictures) with multi-datacenter replication via the `user_attachments` table. Attachment blobs are stored in S3 alongside regular file objects.
+
 ### Other Domains
 
-| Domain                       | Handler                                         | Controller                                                | Repo                       |
-| ---------------------------- | ----------------------------------------------- | --------------------------------------------------------- | -------------------------- |
-| Family plans                 | `pkg/api/family.go`                             | `pkg/controller/family/`                                  | `pkg/repo/family.go`       |
-| Emergency contacts           | `pkg/api/emergency.go`                          | `pkg/controller/emergency/`                               | `pkg/repo/emergency/`      |
-| Authenticator (2FA app)      | `pkg/api/authenticator.go`                      | `pkg/controller/authenticator/`                           | `pkg/repo/authenticator/`  |
-| Passkeys (WebAuthn)          | `pkg/api/passkeys.go`                           | `pkg/controller/passkeys.go`                              | `pkg/repo/passkey/`        |
-| Cast (Chromecast)            | `pkg/api/cast.go`                               | `pkg/controller/cast/`                                    | `pkg/repo/cast/`           |
-| Storage bonuses              | `pkg/api/storage_bonus.go`                      | `pkg/controller/storagebonus/`                            | `pkg/repo/storagebonus/`   |
-| Remote store (feature flags) | `pkg/api/remotestore.go`                        | `pkg/controller/remotestore/`                             | `pkg/repo/remotestore/`    |
-| User entities                | `pkg/api/userentity.go`                         | `pkg/controller/userentity/`                              | `pkg/repo/userentity/`     |
-| Paste                        | `pkg/api/paste.go`                              | —                                                         | `pkg/repo/public/paste.go` |
-| Offers/Discounts             | `pkg/api/offer.go`, `pkg/api/discountcoupon.go` | `pkg/controller/offer/`, `pkg/controller/discountcoupon/` | `pkg/repo/discountcoupon/` |
-| Embeddings (ML)              | —                                               | `pkg/controller/embedding/`                               | `pkg/repo/embedding/`      |
-| Push notifications           | `pkg/api/push.go`                               | `pkg/controller/push.go`                                  | `pkg/repo/push.go`         |
-| Admin                        | `pkg/api/admin.go`, `pkg/api/admin_listmonk.go` | —                                                         | —                          |
-| Collection actions            | `pkg/api/collection_actions.go`                 | `pkg/controller/collection_actions.go`                    | `pkg/repo/collection_actions.go` |
-| Data cleanup                 | —                                               | `pkg/controller/data_cleanup/`                            | `pkg/repo/datacleanup/`    |
+| Domain                       | Handler                                         | Controller                                                | Repo                                                          |
+| ---------------------------- | ----------------------------------------------- | --------------------------------------------------------- | ------------------------------------------------------------- |
+| Family plans                 | `pkg/api/family.go`                             | `pkg/controller/family/`                                  | `pkg/repo/family.go`                                          |
+| Emergency contacts           | `pkg/api/emergency.go`                          | `pkg/controller/emergency/`                               | `pkg/repo/emergency/`                                         |
+| Authenticator (2FA app)      | `pkg/api/authenticator.go`                      | `pkg/controller/authenticator/`                           | `pkg/repo/authenticator/`                                     |
+| Passkeys (WebAuthn)          | `pkg/api/passkeys.go`                           | `pkg/controller/passkeys.go`                              | `pkg/repo/passkey/`                                           |
+| Cast (Chromecast)            | `pkg/api/cast.go`                               | `pkg/controller/cast/`                                    | `pkg/repo/cast/`                                              |
+| Storage bonuses              | `pkg/api/storage_bonus.go`                      | `pkg/controller/storagebonus/`                            | `pkg/repo/storagebonus/`                                      |
+| Remote store (feature flags) | `pkg/api/remotestore.go`                        | `pkg/controller/remotestore/`                             | `pkg/repo/remotestore/`                                       |
+| User entities                | `pkg/api/userentity.go`                         | `pkg/controller/userentity/`                              | `pkg/repo/userentity/`                                        |
+| Paste                        | `pkg/api/paste.go`                              | —                                                         | `pkg/repo/public/paste.go`                                    |
+| Offers/Discounts             | `pkg/api/offer.go`, `pkg/api/discountcoupon.go` | `pkg/controller/offer/`, `pkg/controller/discountcoupon/` | `pkg/repo/discountcoupon/`                                    |
+| Embeddings (ML)              | —                                               | `pkg/controller/embedding/`                               | `pkg/repo/embedding/`                                         |
+| Push notifications           | `pkg/api/push.go`                               | `pkg/controller/push.go`                                  | `pkg/repo/push.go`                                            |
+| Admin                        | `pkg/api/admin.go`, `pkg/api/admin_listmonk.go` | —                                                         | —                                                             |
+| Collection actions           | `pkg/api/collection_actions.go`                 | `pkg/controller/collection_actions.go`                    | `pkg/repo/collection_actions.go`                              |
+| Data cleanup                 | —                                               | `pkg/controller/data_cleanup/`                            | `pkg/repo/datacleanup/`                                       |
 | Object storage               | —                                               | `pkg/controller/object.go`, `object_cleanup.go`           | `pkg/repo/object.go`, `object_cleanup.go`, `object_copies.go` |
-| Replication                  | —                                               | `pkg/controller/replication3.go`                          | —                          |
-| Usage tracking               | —                                               | `pkg/controller/usage.go`                                 | `pkg/repo/usage.go`        |
-| Health check                 | `pkg/api/healthcheck.go`                        | —                                                         | —                          |
+| Replication                  | —                                               | `pkg/controller/replication3.go`                          | —                                                             |
+| Usage tracking               | —                                               | `pkg/controller/usage.go`                                 | `pkg/repo/usage.go`                                           |
+| Health check                 | `pkg/api/healthcheck.go`                        | —                                                         | —                                                             |
 
 ---
 
@@ -310,7 +326,7 @@ Prefix `ENTE_`, uppercase, replace `.` and `-` with `_`.
 
 **Engine:** PostgreSQL 15
 **Driver:** `github.com/lib/pq`
-**Migrations:** `golang-migrate/migrate/v4` — 119 migrations (238 files with up/down) in `migrations/`
+**Migrations:** `golang-migrate/migrate/v4` — 120 migrations (240 files with up/down) in `migrations/`
 **Connection pool:** 6 idle, 45 max open, 30min lifetime, 10min idle timeout
 
 ### Migration pattern
@@ -319,7 +335,7 @@ Prefix `ENTE_`, uppercase, replace `.` and `-` with `_`.
 migrations/1_create_tables.up.sql
 migrations/1_create_tables.down.sql
 ...
-migrations/99_*.up.sql
+migrations/120_*.up.sql
 ```
 
 Migrations run automatically on startup in `setupDatabase()`.
@@ -357,6 +373,8 @@ return tx.Commit()
 | `push_tokens`       | Firebase FCM device tokens                   |
 | `memory_shares`     | Public memory share metadata                 |
 | `embeddings`        | ML embedding vectors                         |
+| `contact_entity`    | E2EE contact entries (per-user address book) |
+| `user_attachments`  | Contact attachment blobs (profile pictures)  |
 
 ---
 
@@ -368,32 +386,32 @@ return tx.Commit()
 
 ### Cron schedule
 
-| Interval | Job                                               | Component                     |
-| -------- | ------------------------------------------------- | ----------------------------- |
-| 1m       | Remove expired OTTs                                | `UserAuthRepository`          |
-| 1m       | Remove expired 2FA sessions + used OTP codes       | `TwoFactorRepository`         |
-| 1m       | Remove expired temp 2FA secrets                    | `TwoFactorRepository`         |
-| 1m       | Remove expired passkey sessions                    | `PasskeyRepository`           |
-| 1m       | Cleanup trashed collections                        | `TrashController`             |
-| 1m       | Send queued push notifications                     | `PushController`              |
-| 1m       | Health check ping                                  | `HealthCheckHandler`          |
-| 8m       | Cleanup permanently deleted files                  | `FileController`              |
-| 17m      | Drop file metadata from trash                      | `TrashController`             |
-| 30m      | Cleanup expired pastes                             | `PasteRepository`             |
-| 45m      | Delete unclaimed Cast codes + data cleanup          | `CastDb` + `DataCleanupCtrl` |
-| 60m      | Send recovery reminders + cleanup expired locks     | `EmergencyController` + `TaskLockRepository` |
-| 63s      | Process storage bonus upgrade/downgrade            | `StorageBonusController`      |
-| 67s      | Process empty trash requests                       | `TrashController`             |
-| 90s      | Remove Wasabi compliance holds                     | `ObjectController`            |
-| 101s     | Cleanup deleted embeddings                         | `EmbeddingController`         |
-| 101s     | Delete aged trashed files                          | `TrashController`             |
-| 24h      | Remove old auth tokens + cast sessions + link history | `UserAuthRepository` + `CastDb` |
-| 24h      | Send storage limit exceeded emails                 | `EmailNotificationController` |
-| 24h      | Send storage warning emails                        | `EmailNotificationController` |
-| 24h      | Send welcome emails                                | `EmailNotificationController` |
-| 24h      | Nudge for family plan + cleanup fake SRP sessions  | `EmailNotificationController` + `UserAuthRepository` |
-| 24h      | Process inactive users                             | `InactiveUserOrchestrator`    |
-| 24h      | Clear expired push tokens                          | `PushController`              |
+| Interval | Job                                                   | Component                                            |
+| -------- | ----------------------------------------------------- | ---------------------------------------------------- |
+| 1m       | Remove expired OTTs                                   | `UserAuthRepository`                                 |
+| 1m       | Remove expired 2FA sessions + used OTP codes          | `TwoFactorRepository`                                |
+| 1m       | Remove expired temp 2FA secrets                       | `TwoFactorRepository`                                |
+| 1m       | Remove expired passkey sessions                       | `PasskeyRepository`                                  |
+| 1m       | Cleanup trashed collections                           | `TrashController`                                    |
+| 1m       | Send queued push notifications                        | `PushController`                                     |
+| 1m       | Health check ping                                     | `HealthCheckHandler`                                 |
+| 8m       | Cleanup permanently deleted files                     | `FileController`                                     |
+| 17m      | Drop file metadata from trash                         | `TrashController`                                    |
+| 30m      | Cleanup expired pastes                                | `PasteRepository`                                    |
+| 45m      | Delete unclaimed Cast codes + data cleanup            | `CastDb` + `DataCleanupCtrl`                         |
+| 60m      | Send recovery reminders + cleanup expired locks       | `EmergencyController` + `TaskLockRepository`         |
+| 63s      | Process storage bonus upgrade/downgrade               | `StorageBonusController`                             |
+| 67s      | Process empty trash requests                          | `TrashController`                                    |
+| 90s      | Remove Wasabi compliance holds                        | `ObjectController`                                   |
+| 101s     | Cleanup deleted embeddings                            | `EmbeddingController`                                |
+| 101s     | Delete aged trashed files                             | `TrashController`                                    |
+| 24h      | Remove old auth tokens + cast sessions + link history | `UserAuthRepository` + `CastDb`                      |
+| 24h      | Send storage limit exceeded emails                    | `EmailNotificationController`                        |
+| 24h      | Send storage warning emails                           | `EmailNotificationController`                        |
+| 24h      | Send welcome emails                                   | `EmailNotificationController`                        |
+| 24h      | Nudge for family plan + cleanup fake SRP sessions     | `EmailNotificationController` + `UserAuthRepository` |
+| 24h      | Process inactive users                                | `InactiveUserOrchestrator`                           |
+| 24h      | Clear expired push tokens                             | `PushController`                                     |
 
 ### Queue system (DB-backed)
 
@@ -405,11 +423,13 @@ return tx.Commit()
 
 ### Background workers (goroutines)
 
-Started in `setupAndStartBackgroundJobs()` (`cmd/museum/main.go:1104`):
+Started in `setupAndStartBackgroundJobs()` (`cmd/museum/main.go:1130`):
 
 - **File Replication V3** — replicate objects to secondary DCs (requires `replication.enabled: true`)
 - **File Data Replication** — replicate file metadata (requires `replication.enabled: true`)
+- **Contact Attachment Replication** — replicate contact attachments to secondary DCs (requires `replication.enabled: true`)
 - **File Data Deletion** — delete file data for removed files
+- **Contact Data Deletion** — delete attachment data for removed contacts
 - **Unreported Objects Cleanup** — remove unreported S3 objects
 - **Orphan Object Cleanup** — remove stranded S3 objects
 
@@ -544,7 +564,7 @@ go run tools/gen-random-keys/main.go
 
 ## Critical Gotchas
 
-1. **`main.go` is massive** (~1,345 lines) — all DI wiring, route registration, and cron setup live here. Search by handler/controller name to find routes.
+1. **`main.go` is massive** (~1,377 lines) — all DI wiring, route registration, and cron setup live here. Search by handler/controller name to find routes.
 2. **No ORM** — all SQL is hand-written in repo files. Check `migrations/` for schema.
 3. **Emails are encrypted at rest** — stored via `pkg/utils/crypto/`, looked up by BLAKE2b hash. The `key.encryption` and `key.hash` config values are critical.
 4. **Three S3 buckets required** — hardcoded names `b2-eu-cen`, `wasabi-eu-central-2-v3`, `scw-eu-fr-v3`. Any S3-compatible provider works; names are arbitrary.

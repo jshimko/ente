@@ -2,20 +2,20 @@
 
 Reference guide for AI agents working with Ente documentation. Focus areas: self-hosting and Kubernetes deployment.
 
-**Documented:** 2026-03-31
-**Commit:** c5bb7228494c8613deb41eeb0b7cb729bb12732f
+**Documented:** 2026-04-13
+**Commit:** 918c6a1986fcb89c810c007c90b4991298660ae5
 
 ## Overview
 
 VitePress documentation site for Ente products. Published at [ente.com/help](https://ente.com/help).
 
-**Structure:** ~190 markdown files across 7 product areas:
+**Structure:** ~197 markdown files across 7 product areas:
 
 - `self-hosting/` - Server deployment (26 files) **[Primary focus]**
-- `photos/` - Ente Photos app (114 files)
-- `locker/` - Ente Locker secure storage (31 files)
-- `auth/` - Ente Auth 2FA app (13 files)
-- `ensu/` - Ensu local AI chat (2 files)
+- `photos/` - Ente Photos app (115 files)
+- `locker/` - Ente Locker secure storage (32 files)
+- `auth/` - Ente Auth 2FA app (14 files)
+- `ensu/` - Ensu local AI chat (4 files)
 - `cli/` - CLI tool (1 file)
 - `de/` - German translations (1 file)
 - `.vitepress/` - Site configuration
@@ -42,6 +42,7 @@ VitePress documentation site for Ente products. Published at [ente.com/help](htt
 | **Photos app docs**             | `photos/`                                       |
 | **Locker app docs**             | `locker/`                                       |
 | **Auth app docs**               | `auth/`                                         |
+| **Auth Windows login issues**   | `auth/troubleshooting/windows-login.md`         |
 | **Ensu docs**                   | `ensu/`                                         |
 | **Ensu FAQ**                    | `ensu/faq/`                                     |
 | **Style guide**                 | `photos/STYLE_GUIDE.md`                         |
@@ -766,6 +767,7 @@ grep -rh "{#[a-z0-9-]*}" docs/photos/faq/*.md | sed 's/.*{#\([^}]*\)}.*/\1/' | s
 | `self-hosting/administration/users.md`            | User/admin management              |
 | `self-hosting/administration/reverse-proxy.md`    | Caddy/NGINX/Traefik setup          |
 | `self-hosting/administration/cli.md`              | CLI configuration                  |
+| `self-hosting/administration/security.md`         | Security (placeholder)             |
 | `self-hosting/development/mobile-build.md`        | Building mobile apps               |
 | `self-hosting/development/lima.md`                | Lima VM for macOS                  |
 | `self-hosting/troubleshooting/uploads.md`         | 403, CORS, file size errors        |
@@ -779,7 +781,7 @@ grep -rh "{#[a-z0-9-]*}" docs/photos/faq/*.md | sed 's/.*{#\([^}]*\)}.*/\1/' | s
 | ------------------------- | ---------------------------------- |
 | `photos/index.md`         | Photos overview                    |
 | `photos/STYLE_GUIDE.md`   | Documentation style standards      |
-| `photos/getting-started/` | Getting started guides (6 files)   |
+| `photos/getting-started/` | Getting started guides (7 files)   |
 | `photos/features/`        | Feature documentation (69 files)   |
 | `photos/faq/`             | FAQ organized by topic (23 files)  |
 | `photos/migration/`       | Migration from Google/Apple/Amazon |
@@ -790,25 +792,28 @@ grep -rh "{#[a-z0-9-]*}" docs/photos/faq/*.md | sed 's/.*{#\([^}]*\)}.*/\1/' | s
 | Path                      | Content                         |
 | ------------------------- | ------------------------------- |
 | `locker/index.md`         | Locker overview                 |
-| `locker/getting-started/` | Getting started (5 files)       |
+| `locker/getting-started/` | Getting started (6 files)       |
 | `locker/features/`        | Features by category (17 files) |
 | `locker/faq/`             | FAQ by topic (8 files)          |
 
 ### Auth Documentation
 
-| Path              | Content                        |
-| ----------------- | ------------------------------ |
-| `auth/index.md`   | Auth overview                  |
-| `auth/features/`  | Feature documentation          |
-| `auth/migration/` | Import from Authy, Steam, etc. |
-| `auth/faq/`       | FAQ and privacy info           |
+| Path                    | Content                        |
+| ----------------------- | ------------------------------ |
+| `auth/index.md`         | Auth overview                  |
+| `auth/features/`        | Feature documentation          |
+| `auth/migration/`       | Import from Authy, Steam, etc. |
+| `auth/faq/`             | FAQ and privacy info           |
+| `auth/troubleshooting/` | Windows login issues           |
 
 ### Ensu Documentation
 
-| Path                | Content                           |
-| ------------------- | --------------------------------- |
-| `ensu/index.md`     | Ensu overview (local AI chat app) |
-| `ensu/faq/index.md` | Ensu FAQ                          |
+| Path                                | Content                           |
+| ----------------------------------- | --------------------------------- |
+| `ensu/index.md`                     | Ensu overview (local AI chat app) |
+| `ensu/faq/index.md`                 | Ensu FAQ                          |
+| `ensu/faq/android-apk-signature.md` | APK signature verification        |
+| `ensu/faq/uninstall.md`             | Uninstall instructions            |
 
 ### CLI Documentation
 

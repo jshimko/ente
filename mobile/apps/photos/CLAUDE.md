@@ -4,8 +4,8 @@ Reference guide for the Ente Photos mobile app. For monorepo-wide guidance (shar
 
 **Purpose:** End-to-end encrypted photo backup and management app built with Flutter/Dart. Largest app in the Ente mobile monorepo (400+ dependencies, 50+ services, ML features, Rust FFI).
 
-**Documented:** 2026-04-07
-**Commit:** d69552ba7c
+**Documented:** 2026-04-13
+**Commit:** 918c6a1986
 
 ---
 
@@ -141,7 +141,7 @@ Background boot (Workmanager):
 | `lib/main.dart`                          | App entry point, background task dispatcher, sync scheduling |
 | `lib/app.dart`                           | Root widget (EnteApp), locale changes, deeplink routing      |
 | `lib/app_mode.dart`                      | Online/offline mode management                               |
-| `lib/service_locator.dart`               | All service singletons (40+ lazy getters)                    |
+| `lib/service_locator.dart`               | All service singletons (38 lazy getters)                     |
 | `lib/core/configuration.dart`            | User config, encryption keys, secure storage (26KB)          |
 | `lib/core/network/network.dart`          | Dio HTTP clients (enteDio, nonEnteDio)                       |
 | `lib/core/network/ente_interceptor.dart` | Auth token injection, error handling                         |
@@ -150,16 +150,16 @@ Background boot (Workmanager):
 
 ### Key Architecture Patterns
 
-| Pattern          | Implementation                               | Access                                                      |
-| ---------------- | -------------------------------------------- | ----------------------------------------------------------- |
-| Service Locator  | `lib/service_locator.dart`                   | `ServiceLocator.instance`, 40+ lazy getters at module level |
-| Event Bus        | `lib/core/event_bus.dart`                    | `Bus.instance.on<T>().listen()` / `Bus.instance.fire()`     |
-| Gateway Pattern  | `lib/gateways/` (11 subdirs)                 | Services -> Gateways -> Dio -> Museum API                   |
-| SQLite DB Layer  | `lib/db/` (15 files)                         | `sqlite_async` with `SqlDbBase` mixin from `db/common/`     |
-| Rust FFI         | `rust/` + `rust_builder/`                    | `flutter_rust_bridge` codegen, `EntePhotosRust.init()`      |
-| Isolate Compute  | `services/machine_learning/ml_computer.dart` | Dedicated isolate for ML inference                          |
-| Background Tasks | `lib/utils/bg_task_utils.dart`               | Workmanager (iOS 30min, Android 15min intervals)            |
-| Caching          | `lib/core/cache/`                            | `LRUMap`, image/thumbnail/video caches                      |
+| Pattern          | Implementation                               | Access                                                     |
+| ---------------- | -------------------------------------------- | ---------------------------------------------------------- |
+| Service Locator  | `lib/service_locator.dart`                   | `ServiceLocator.instance`, 38 lazy getters at module level |
+| Event Bus        | `lib/core/event_bus.dart`                    | `Bus.instance.on<T>().listen()` / `Bus.instance.fire()`    |
+| Gateway Pattern  | `lib/gateways/` (11 subdirs)                 | Services -> Gateways -> Dio -> Museum API                  |
+| SQLite DB Layer  | `lib/db/` (15 files)                         | `sqlite_async` with `SqlDbBase` mixin from `db/common/`    |
+| Rust FFI         | `rust/` + `rust_builder/`                    | `flutter_rust_bridge` codegen, `EntePhotosRust.init()`     |
+| Isolate Compute  | `services/machine_learning/ml_computer.dart` | Dedicated isolate for ML inference                         |
+| Background Tasks | `lib/utils/bg_task_utils.dart`               | Workmanager (iOS 30min, Android 15min intervals)           |
+| Caching          | `lib/core/cache/`                            | `LRUMap`, image/thumbnail/video caches                     |
 
 ### Security Architecture
 
@@ -221,13 +221,14 @@ All services in `lib/services/`. Most are singletons accessed via lazy getters i
 
 ### Memories
 
-| Service              | File                                            | Purpose                    |
-| -------------------- | ----------------------------------------------- | -------------------------- |
-| MemoryLaneService    | `services/memory_lane/memory_lane_service.dart` | On-this-day memories       |
-| SmartMemoriesService | `services/smart_memories_service.dart`          | AI-powered memory curation |
-| MemoriesCacheService | `services/memories_cache_service.dart`          | Memory caching (37KB)      |
-| MemoryShareService   | `services/memory_share_service.dart`            | Memory sharing (28KB)      |
-| VideoMemoryService   | `services/video_memory_service.dart`            | Video memory creation      |
+| Service                | File                                                  | Purpose                    |
+| ---------------------- | ----------------------------------------------------- | -------------------------- |
+| MemoryLaneService      | `services/memory_lane/memory_lane_service.dart`       | On-this-day memories       |
+| MemoryLaneCacheService | `services/memory_lane/memory_lane_cache_service.dart` | Memory lane caching        |
+| SmartMemoriesService   | `services/smart_memories_service.dart`                | AI-powered memory curation |
+| MemoriesCacheService   | `services/memories_cache_service.dart`                | Memory caching (37KB)      |
+| MemoryShareService     | `services/memory_share_service.dart`                  | Memory sharing (28KB)      |
+| VideoMemoryService     | `services/video_memory_service.dart`                  | Video memory creation      |
 
 ### Social & Sharing
 
@@ -264,20 +265,23 @@ All services in `lib/services/`. Most are singletons accessed via lazy getters i
 
 ### Other
 
-| Service                    | File                                          | Purpose                           |
-| -------------------------- | --------------------------------------------- | --------------------------------- |
-| EntityService              | `services/entity_service.dart`                | Collaborative entity operations   |
-| LocationService            | `services/location_service.dart`              | Location data extraction, mapping |
-| MagicCacheService          | `services/magic_cache_service.dart`           | Magic metadata caching (18KB)     |
-| StorageBonusService        | `services/storage_bonus_service.dart`         | Referral storage tracking         |
-| RitualsService             | `services/rituals/rituals_service.dart`       | Daily/recurring reminders         |
-| WrappedService             | `services/wrapped/wrapped_service.dart`       | Year-end photo highlights         |
-| PermissionService          | `services/permission/service.dart`            | Permission management             |
-| LanguageService            | `services/language_service.dart`              | Language/locale management        |
-| RemoteAssetsService        | `services/remote_assets_service.dart`         | Remote asset fetching             |
-| IsolatedFFmpegService      | `services/isolated_ffmpeg_service.dart`       | FFmpeg in isolated process        |
-| TextEmbeddingsCacheService | `services/text_embeddings_cache_service.dart` | Text embedding cache              |
-| VideoPreviewService        | `services/video_preview_service.dart`         | Video preview generation          |
+| Service                    | File                                               | Purpose                           |
+| -------------------------- | -------------------------------------------------- | --------------------------------- |
+| EntityService              | `services/entity_service.dart`                     | Collaborative entity operations   |
+| LocationService            | `services/location_service.dart`                   | Location data extraction, mapping |
+| MagicCacheService          | `services/magic_cache_service.dart`                | Magic metadata caching (18KB)     |
+| StorageBonusService        | `services/storage_bonus_service.dart`              | Referral storage tracking         |
+| RitualsService             | `services/rituals/rituals_service.dart`            | Daily/recurring reminders         |
+| WrappedService             | `services/wrapped/wrapped_service.dart`            | Year-end photo highlights         |
+| WrappedCacheService        | `services/wrapped/wrapped_cache_service.dart`      | Wrapped data caching              |
+| PhotosContactsService      | `services/photos_contacts_service.dart`            | Photos-specific contacts          |
+| ContactIdentityResolver    | `services/contacts/contact_identity_resolver.dart` | Contact identity resolution       |
+| PermissionService          | `services/permission/service.dart`                 | Permission management             |
+| LanguageService            | `services/language_service.dart`                   | Language/locale management        |
+| RemoteAssetsService        | `services/remote_assets_service.dart`              | Remote asset fetching             |
+| IsolatedFFmpegService      | `services/isolated_ffmpeg_service.dart`            | FFmpeg in isolated process        |
+| TextEmbeddingsCacheService | `services/text_embeddings_cache_service.dart`      | Text embedding cache              |
+| VideoPreviewService        | `services/video_preview_service.dart`              | Video preview generation          |
 
 ---
 
@@ -356,7 +360,7 @@ All UI in `lib/ui/`.
 
 ## Key Events Reference
 
-63 event types in `lib/events/`. Most important:
+64 event types in `lib/events/`. Most important:
 
 | Event                        | When Fired                                |
 | ---------------------------- | ----------------------------------------- |
@@ -404,7 +408,10 @@ lib/
 │   ├── cache/             # LRU maps, image/thumbnail/video caches
 │   ├── network/           # Dio HTTP clients, auth interceptor
 │   └── error-reporting/   # Sentry integration, super_logging
-├── services/              # Business logic (56+ services)
+├── data/                  # Static data (holidays, months, years)
+├── emergency/             # Emergency contact recovery (pages, service, models)
+├── theme/                 # Theme definitions (colors, effects, text styles)
+├── services/              # Business logic (58+ services)
 │   ├── sync/              # Local, remote, trash sync
 │   ├── machine_learning/  # ML pipeline orchestration
 │   │   ├── face_ml/       # Face detection, recognition, clustering, person
@@ -414,6 +421,7 @@ lib/
 │   ├── rituals/           # Daily reminders
 │   ├── wrapped/           # Year-end highlights
 │   ├── account/           # User service, billing
+│   ├── contacts/          # Contact identity resolution
 │   ├── filedata/          # File metadata service
 │   ├── filter/            # Search filter implementations
 │   └── permission/        # Permission management
@@ -454,12 +462,12 @@ Located in `plugins/`. These are NOT shared with Auth/Locker.
 
 ## Build Variants
 
-| Flavor        | Use Case                     | App ID                  |
-| ------------- | ---------------------------- | ----------------------- |
-| `independent` | Default development          | `io.ente.photos`        |
-| `dev`         | Development with `.env` file | `io.ente.photos.dev`    |
-| `playstore`   | Google Play release          | `io.ente.photos`        |
-| `fdroid`      | F-Droid (no Google services) | `io.ente.photos.fdroid` |
+| Flavor        | Use Case                     | App ID                       |
+| ------------- | ---------------------------- | ---------------------------- |
+| `independent` | Default development          | `io.ente.photos.independent` |
+| `dev`         | Development with `.env` file | `io.ente.photos.dev`         |
+| `playstore`   | Google Play release          | `io.ente.photos`             |
+| `fdroid`      | F-Droid (no Google services) | `io.ente.photos.fdroid`      |
 
 - Android: Min SDK 26, Target SDK 36, NDK 28.2.13676358
 - iOS: Deployment target 14.0+
