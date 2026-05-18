@@ -82,10 +82,10 @@ class RemoteFlags {
     enableMobMultiPart: false,
     isSelfHosted: false,
     serverApiFlag: 0,
-    castUrl: "https://cast.ente.io",
+    castUrl: "https://cast.ente.com",
     customDomain: "",
-    embedUrl: "https://embed.ente.io",
-    customDomainCNAME: "my.ente.io",
+    embedUrl: "https://embed.ente.com",
+    customDomainCNAME: "my.ente.com",
   );
 
   String toJson() => json.encode(toMap());

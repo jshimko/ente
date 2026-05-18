@@ -505,7 +505,7 @@
   "pinLock": "Pin 잠금",
   "enterPin": "PIN 번호 입력",
   "setNewPin": "새 PIN 번호 설정",
-  "importFailureDescNew": "선택하신 파일을 분석할 수 없습니다.",
+  "importFailureDesc": "선택하신 파일을 분석할 수 없습니다.",
   "appLockNotEnabled": "App 잠금 설정되지 않음",
   "appLockNotEnabledDescription": "설정 > App 잠금에서 App 잠금을 활성화해주세요",
   "authToViewPasskey": "패스키를 보려면 인증 절차를 거쳐주세요",
@@ -577,7 +577,7 @@
   "addNew": "새로 추가",
   "selected": "선택됨",
   "moveMultipleToTrashMessage": "항목 {count}개를 휴지통으로 이동하시겠습니까?",
-  "nSelected": "{count, plural, =1{1개 선택함} other{{count}개 선택함}}",
+  "nSelected": "{count, plural, one {{count}개 선택함} other{{count}개 선택함}}",
   "@nSelected": {
     "description": "Text to indicate number of items selected",
     "placeholders": {
@@ -588,7 +588,7 @@
       }
     }
   },
-  "pinnedCount": "{count, plural, =1{1개 고정함} other{{count}개 고정함}}",
+  "pinnedCount": "{count, plural, one{{count}개 고정함} other{{count}개 고정함}}",
   "@pinnedCount": {
     "description": "Text to show number of items pinned",
     "placeholders": {
@@ -599,7 +599,7 @@
       }
     }
   },
-  "unpinnedCount": "{count, plural, =1{1개 고정 해제함} other{{count}개 고정 해제함}}",
+  "unpinnedCount": "{count, plural, one{{count}개 고정 해제함} other{{count}개 고정 해제함}}",
   "@unpinnedCount": {
     "description": "Text to show number of items unpinned",
     "placeholders": {

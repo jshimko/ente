@@ -33,7 +33,7 @@ Once configured, new photos added to these albums will automatically sync in the
 Yes. You can enable this during signup/login on the permissions screen, or later via `Settings > Backup > Backup settings` by toggling on **Backup only new photos**.
 
 - **During onboarding**: Ente backs up from the **last 7 days** onward, so you have some recent photos available right away.
-- **Via the settings toggle**: Ente uses the current moment as the cutoff — only photos taken from that point forward are backed up.
+- **Via the settings toggle**: Ente uses the current moment as the cutoff - only photos taken from that point forward are backed up.
 
 In both cases, photos older than the cutoff will not be uploaded to Ente.
 
@@ -236,6 +236,44 @@ Live Photos behave differently depending on how you share them:
 - **Using "Download"**: Downloads the complete Live Photo (image + video)
 - **Using "Share" button to save/download**: Only saves the still image
 
+### How do I restore Live Photos from Ente? {#restore-live-photos}
+
+If you backed up your Live Photos to Ente and deleted them from your iPhone and iCloud, you can restore them as proper Live Photos (not as two separate files) using either of the methods below.
+
+**Method 1: Save directly from the Ente iOS app**
+
+This is the simplest path and works entirely on your iPhone.
+
+1. Open the Ente app on your iPhone.
+2. Navigate to the Live Photo you want to restore.
+3. Tap the download icon.
+
+Ente will save the photo and its paired video back to your Camera Roll as a proper Live Photo. You will see the Live Photo badge when you view it in the Photos app.
+
+Repeat for each Live Photo, or select multiple photos and use the bulk save option.
+
+**Method 2: Desktop export, then re-import into Mac Photos**
+
+Use this method if you want to restore a large library, or if you prefer working from a Mac.
+
+**Step 1 — Export from Ente**
+
+1. Sign in to the Ente desktop app.
+2. Open the sidebar and choose **Export data**.
+3. Pick a destination folder and click **Start**.
+
+When the export finishes, each Live Photo appears as two files in the export folder — an image file (`.heic` or `.jpg`) and a paired video (`.mov`) — both sharing the same base filename (e.g. `IMG_1234.heic` and `IMG_1234.mov`).
+
+**Step 2 — Import into Mac Photos**
+
+1. Open the Photos app on your Mac.
+2. Choose **File > Import**.
+3. Select the folder you exported from Ente and click **Review for Import**.
+4. Photos on Mac will automatically recognise the paired image and video files as Live Photos and import them as such.
+5. Click **Import All New Items**.
+
+If you have iCloud Photos enabled, the restored Live Photos will sync to your iPhone automatically. You can also connect your iPhone via USB and use Finder to transfer them directly.
+
 ### Does Ente backup Burst photos? {#burst-photos-backup}
 
 Ente backs up a single primary full-resolution image from the Burst. Additional frames from the Burst sequence are not backed up unless each frame is selected and uploaded.
@@ -243,6 +281,26 @@ Ente backs up a single primary full-resolution image from the Burst. Additional 
 ### Why do I see duplicate files in the iOS app when the same photo is in an iCloud Shared Album? {#icloud-shared-album-duplicates}
 
 iCloud Shared Albums store compressed copies, not the original files. Because of this, Ente sees the shared-album copy as a different file, so it gets backed up separately and appears as a duplicate.
+
+### Why is my Recents count lower in Ente than in the iOS Photos app? {#ios-recents-count-mismatch}
+
+Ente reads photos through Apple's photo library APIs, which don't always return every item shown in the Photos app. In particular, some burst frames and certain shared or synced assets are excluded from third-party app queries by iOS itself. This can make Ente's Recents count in the on-device section slightly lower than iOS's.
+
+### Why aren't photos from my Samsung "Gallery" folder backing up? {#samsung-gallery-folder}
+
+Ente backs up the folders you select under `Settings > Backup > Backed up folders`. On Samsung devices, photos restored by Samsung Cloud often land in a folder called **Gallery**, which is separate from the standard **Camera** folder.
+
+If Ente isn't picking these up:
+
+1. Open `Settings > Backup > Backed up folders` and check whether the Gallery folder is listed and selected.
+2. If it isn't listed, move or copy the photos into the Camera folder, which Ente recognizes by default.
+3. New photos taken with the camera will continue to back up normally.
+
+### Can Ente replace my default Photos or Camera gallery? {#ente-as-default-gallery}
+
+Not as a system gallery. On iOS, tapping a photo from the camera or another app will still open Apple Photos; the OS doesn't allow third-party apps to take that role. Android behaves similarly for most camera apps.
+
+Ente runs alongside your native gallery and backs up new photos automatically in the background. See [How does background sync work?](#how-background-sync-works).
 
 ### On my iPhone, why are my photos not seen in the same albums as selected for backup? {#ios-album-assignment}
 
@@ -354,6 +412,25 @@ Watch folders allow the Ente desktop app to automatically monitor specific direc
 - Preserves folder structure as albums
 
 Learn more in the [Watch folders feature guide](/photos/features/backup-and-sync/watch-folders).
+
+### Does Ente keep my phone and PC folders in sync with each other? {#folder-sync-phone-pc}
+
+Ente backs up photos from your phone and computer to Ente's servers, making them available across all your Ente apps. However, Ente is not a two-way folder sync service - it won't automatically mirror a folder on your PC and your phone's local storage with each other.
+
+- **On mobile**: Your photos remain in your device photo library. Ente backs up the albums you select.
+- **On desktop**: Your photos remain in the folder you chose to watch. The desktop app uploads them to Ente using Watch folders.
+
+Once uploaded, your library is accessible across all your devices through Ente.
+
+### Can Ente create albums automatically from my watch folder structure? {#albums-from-watch-folder-structure}
+
+Yes. When you add a parent folder in Watch folders and choose **Separate albums**, each subfolder is created as its own Ente album.
+
+For example, if you have a `Photos` folder containing `Trip A` and `Trip B` subfolders, watching `Photos` in Separate albums mode creates two albums called "Trip A" and "Trip B".
+
+> **Note**: Ente albums are flat, not nested. All albums appear as top-level albums regardless of how your folders are structured on disk.
+
+Learn more in the [Watch folders guide](/photos/features/backup-and-sync/watch-folders).
 
 ### What are watch folders? {#what-are-watch-folders}
 

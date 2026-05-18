@@ -531,11 +531,11 @@ Located in `plugins/`. These are NOT shared with Auth/Locker.
 
 ## Key Dependencies
 
-- **Flutter 3.32.8** with Dart SDK >=3.3.0 <4.0.0
-- **Media**: `photo_manager`, `video_editor`, `ffmpeg_kit_flutter`, `media_kit`
-- **Storage**: `sqlite_async`, `flutter_secure_storage` (pinned v9.0.0)
-- **ML/AI**: Custom ONNX runtime (`onnx_dart` plugin), `ml_linalg`
-- **Rust**: Flutter Rust Bridge for performance-critical operations
+- **Flutter 3.38.10** with Dart SDK >=3.10.0 <4.0.0
+- **Media**: `photo_manager`, `video_editor`, `ffmpeg_kit_flutter`
+- **Storage**: `sqlite_async`, `flutter_secure_storage`
+- **ML/AI**: Custom ONNX runtime, `ml_linalg`
+- **Rust**: Flutter Rust Bridge for performance
 - **Network**: `dio` with `native_dio_adapter`
 - **State**: `event_bus` for pub/sub, `adaptive_theme` for theming
 - **Contacts**: `ente_contacts` shared package for contacts management
@@ -544,7 +544,7 @@ Located in `plugins/`. These are NOT shared with Auth/Locker.
 
 ## Development Setup Requirements
 
-1. Install Flutter v3.32.8 and Rust
+1. Install Flutter v3.38.10 and Rust
 2. Install Flutter Rust Bridge: `cargo install flutter_rust_bridge_codegen`
 3. Generate Rust bindings: `flutter_rust_bridge_codegen generate`
 

@@ -38,7 +38,10 @@ const Page: React.FC = () => {
     useEffect(() => {
         refreshHost();
         void isRegistrationDisabled().then(setRegistrationDisabled);
-        if (savedPartialLocalUser()?.email) void router.replace("/verify");
+        if (savedPartialLocalUser()?.email) {
+            void router.replace("/verify");
+            return;
+        }
         setLoading(false);
     }, [router, refreshHost]);
 

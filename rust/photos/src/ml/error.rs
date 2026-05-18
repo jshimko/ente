@@ -12,6 +12,8 @@ pub enum MlError {
     Preprocess(String),
     #[error("onnx runtime error: {0}")]
     Ort(String),
+    #[error("corrupt model: {0}")]
+    CorruptModel(String),
     #[error("postprocess error: {0}")]
     Postprocess(String),
     #[error("runtime error: {0}")]
@@ -27,5 +29,14 @@ impl From<ort::Error> for MlError {
 impl From<image::ImageError> for MlError {
     fn from(value: image::ImageError) -> Self {
         MlError::Decode(value.to_string())
+    }
+}
+
+impl From<ente_image::ImageError> for MlError {
+    fn from(value: ente_image::ImageError) -> Self {
+        match value {
+            ente_image::ImageError::Decode(message) => MlError::Decode(message),
+            ente_image::ImageError::Postprocess(message) => MlError::Postprocess(message),
+        }
     }
 }

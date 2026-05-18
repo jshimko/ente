@@ -6,6 +6,7 @@ import 'package:ente_accounts/services/user_service.dart';
 import 'package:ente_crypto_api/ente_crypto_api.dart';
 import 'package:ente_crypto_dart_adapter/ente_crypto_dart_adapter.dart';
 import "package:ente_legacy/services/emergency_service.dart";
+import "package:ente_legacy/services/legacy_kit_service.dart";
 import 'package:ente_lock_screen/lock_screen_settings.dart';
 import 'package:ente_lock_screen/ui/app_lock.dart';
 import 'package:ente_lock_screen/ui/lock_screen.dart';
@@ -26,14 +27,15 @@ import 'package:locker/l10n/app_localizations.dart';
 import 'package:locker/services/collections/collections_api_client.dart';
 import 'package:locker/services/collections/collections_service.dart';
 import 'package:locker/services/configuration.dart';
-import 'package:locker/services/contacts_display_service.dart';
-import "package:locker/services/db/locker_db.dart";
+import "package:locker/services/contacts_display_service.dart";
+import 'package:locker/services/db/locker_db.dart';
 import 'package:locker/services/favorites_service.dart';
 import 'package:locker/services/files/download/service_locator.dart';
-import "package:locker/services/files/links/links_client.dart";
-import "package:locker/services/files/links/links_service.dart";
+import 'package:locker/services/files/links/links_client.dart';
+import 'package:locker/services/files/links/links_service.dart';
+import 'package:locker/services/files/offline/offline_files_service.dart';
 import 'package:locker/services/trash/trash_service.dart';
-import "package:locker/services/update_service.dart";
+import 'package:locker/services/update_service.dart';
 import 'package:locker/ui/pages/home_page.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
@@ -203,6 +205,7 @@ Future<void> _init(bool bool, {String? via}) async {
     await CollectionApiClient.instance.init();
     await CollectionService.instance.init(preferences);
     await FavoritesService.instance.init();
+    await OfflineFilesService.instance.init();
     await LinksClient.instance.init();
     await LinksService.instance.init();
     await ServiceLocator.instance.init(
@@ -220,6 +223,10 @@ Future<void> _init(bool bool, {String? via}) async {
     await LockerContactsDisplayService.init(
       preferences: preferences,
       packageInfo: packageInfo,
+    );
+    await LegacyKitService.instance.init(
+      config: Configuration.instance,
+      sessionProvider: LockerContactsDisplayService.buildSession,
     );
   } catch (e) {
     _logger.severe("Error during initialization", e);

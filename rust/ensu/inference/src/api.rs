@@ -1,8 +1,8 @@
+use llama_cpp_2::TokenToStringError;
 use llama_cpp_2::context::LlamaContext;
 use llama_cpp_2::context::params::LlamaContextParams;
 use llama_cpp_2::llama_backend::LlamaBackend;
 use llama_cpp_2::llama_batch::LlamaBatch;
-use llama_cpp_2::TokenToStringError;
 use llama_cpp_2::model::{AddBos, LlamaChatMessage, LlamaChatTemplate, LlamaModel};
 use llama_cpp_2::mtmd::{
     MtmdBitmap, MtmdContext, MtmdContextParams, MtmdInputText, mtmd_default_marker,
@@ -10,14 +10,11 @@ use llama_cpp_2::mtmd::{
 use llama_cpp_2::openai::OpenAIChatTemplateParams;
 use llama_cpp_2::sampling::LlamaSampler;
 use llama_cpp_2::token::LlamaToken;
-use llama_cpp_sys_2::{
-    GGML_LOG_LEVEL_ERROR, GGML_LOG_LEVEL_WARN, ggml_log_level, mtmd_helper_log_set,
-};
 use parking_lot::Mutex;
 use self_cell::self_cell;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::ffi::{CStr, CString};
+use std::ffi::CString;
 use std::num::NonZeroU32;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::Path;
@@ -43,8 +40,6 @@ where
 static BACKEND: OnceLock<Result<LlamaBackend, String>> = OnceLock::new();
 static JOB_COUNTER: AtomicI64 = AtomicI64::new(1);
 static CANCEL_FLAGS: OnceLock<Mutex<HashMap<JobId, Arc<AtomicBool>>>> = OnceLock::new();
-static MTMD_LOG_BUFFER: OnceLock<Mutex<String>> = OnceLock::new();
-static MTMD_LOG_HOOK: OnceLock<()> = OnceLock::new();
 
 const CANCEL_MESSAGE: &str = "Generation cancelled";
 const DEFAULT_GENERATION_MAX_TOKENS: i32 = 8_192;
@@ -58,46 +53,6 @@ fn backend() -> Result<&'static LlamaBackend, String> {
 
 fn cancel_flags() -> &'static Mutex<HashMap<JobId, Arc<AtomicBool>>> {
     CANCEL_FLAGS.get_or_init(|| Mutex::new(HashMap::new()))
-}
-
-fn mtmd_log_buffer() -> &'static Mutex<String> {
-    MTMD_LOG_BUFFER.get_or_init(|| Mutex::new(String::new()))
-}
-
-unsafe extern "C" fn mtmd_log_callback(
-    level: ggml_log_level,
-    text: *const ::std::os::raw::c_char,
-    _user_data: *mut ::std::os::raw::c_void,
-) {
-    if text.is_null() {
-        return;
-    }
-    if level != GGML_LOG_LEVEL_WARN && level != GGML_LOG_LEVEL_ERROR {
-        return;
-    }
-    let cstr = unsafe { CStr::from_ptr(text) };
-    if let Ok(message) = cstr.to_str() {
-        let mut guard = mtmd_log_buffer().lock();
-        guard.push_str(message);
-        const MAX_LEN: usize = 8192;
-        if guard.len() > MAX_LEN {
-            let drain = guard.len() - MAX_LEN;
-            guard.drain(..drain);
-        }
-    }
-}
-
-fn init_mtmd_logging() {
-    MTMD_LOG_HOOK.get_or_init(|| unsafe {
-        mtmd_helper_log_set(Some(mtmd_log_callback), std::ptr::null_mut());
-    });
-}
-
-fn take_mtmd_logs() -> String {
-    let mut guard = mtmd_log_buffer().lock();
-    let logs = guard.clone();
-    guard.clear();
-    logs
 }
 
 fn register_job() -> (JobId, Arc<AtomicBool>) {
@@ -137,7 +92,9 @@ fn token_piece_bytes(model: &LlamaModel, token: LlamaToken) -> Result<Vec<u8>, T
     match model.token_to_piece_bytes(token, 8, true, None) {
         Err(TokenToStringError::InsufficientBufferSpace(required)) => model.token_to_piece_bytes(
             token,
-            (-required).try_into().expect("error buffer size is positive"),
+            (-required)
+                .try_into()
+                .expect("error buffer size is positive"),
             true,
             None,
         ),
@@ -167,8 +124,8 @@ fn build_chat_prompt(
         .map_err(|err| format_error("Invalid chat template", err))?;
 
     if template_text.contains("enable_thinking") {
-        let messages_json =
-            serde_json::to_string(&messages).map_err(|err| format_error("Invalid chat messages", err))?;
+        let messages_json = serde_json::to_string(&messages)
+            .map_err(|err| format_error("Invalid chat messages", err))?;
         let params = OpenAIChatTemplateParams {
             messages_json: &messages_json,
             tools_json: None,
@@ -380,8 +337,8 @@ fn run_generation_loop(
             break;
         }
 
-        let bytes =
-            token_piece_bytes(&ctx.model, token).map_err(|err| format_error("Detokenize failed", err))?;
+        let bytes = token_piece_bytes(&ctx.model, token)
+            .map_err(|err| format_error("Detokenize failed", err))?;
         let step = decoder.push_bytes(&bytes);
 
         if let Some(text) = step.text {
@@ -594,7 +551,24 @@ self_cell!(
     }
 );
 
-pub struct ContextHandle(Mutex<ContextHandleCell>);
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct MtmdCacheKey {
+    mmproj_path: String,
+    media_marker: String,
+    use_gpu: bool,
+    print_timings: bool,
+    n_threads: i32,
+}
+
+struct CachedMtmdContext {
+    key: MtmdCacheKey,
+    context: Arc<MtmdContext>,
+}
+
+pub struct ContextHandle {
+    cell: Mutex<ContextHandleCell>,
+    mtmd_context: Mutex<Option<CachedMtmdContext>>,
+}
 
 pub type ContextHandleRef = Arc<ContextHandle>;
 
@@ -606,16 +580,81 @@ impl ContextHandle {
         owner: ModelHandleRef,
         builder: impl for<'a> FnOnce(&'a ModelHandleRef) -> Result<LlamaContext<'a>, String>,
     ) -> Result<Self, String> {
-        ContextHandleCell::try_new(owner, builder).map(|cell| ContextHandle(Mutex::new(cell)))
+        ContextHandleCell::try_new(owner, builder).map(|cell| ContextHandle {
+            cell: Mutex::new(cell),
+            mtmd_context: Mutex::new(None),
+        })
     }
 
     fn with_context_mut<R>(
         &self,
         func: impl for<'a, 'b> FnOnce(&'b mut LlamaContext<'a>) -> R,
     ) -> R {
-        let mut guard = self.0.lock();
+        let mut guard = self.cell.lock();
         guard.with_dependent_mut(|_owner, context| func(context))
     }
+
+    fn cached_mtmd_context(
+        &self,
+        model: &LlamaModel,
+        mmproj_path: &str,
+        marker: &str,
+    ) -> Result<Arc<MtmdContext>, String> {
+        if !Path::new(mmproj_path).exists() {
+            return Err(format!("mmproj file not found at {mmproj_path}"));
+        }
+
+        let (key, params) = mtmd_cache_key_and_params(mmproj_path, marker)?;
+        let mut guard = self.mtmd_context.lock();
+
+        if let Some(cached) = guard.as_ref()
+            && cached.key == key
+        {
+            return Ok(cached.context.clone());
+        }
+
+        let mtmd_ctx = Arc::new(
+            MtmdContext::init_from_file(mmproj_path, model, &params)
+                .map_err(|err| format_error("Failed to initialize mmproj", err))?,
+        );
+
+        if !mtmd_ctx.support_vision() {
+            return Err("Model does not support vision input".to_string());
+        }
+
+        *guard = Some(CachedMtmdContext {
+            key,
+            context: mtmd_ctx.clone(),
+        });
+        Ok(mtmd_ctx)
+    }
+}
+
+fn mtmd_cache_key_and_params(
+    mmproj_path: &str,
+    marker: &str,
+) -> Result<(MtmdCacheKey, MtmdContextParams), String> {
+    let media_marker = CString::new(marker.to_string())
+        .map_err(|err| format_error("Invalid media marker", err))?;
+    let params = MtmdContextParams {
+        use_gpu: false,
+        print_timings: false,
+        media_marker,
+        ..Default::default()
+    };
+    let marker = params
+        .media_marker
+        .to_str()
+        .map_err(|err| format_error("Invalid media marker", err))?
+        .to_string();
+    let key = MtmdCacheKey {
+        mmproj_path: mmproj_path.to_string(),
+        media_marker: marker,
+        use_gpu: params.use_gpu,
+        print_timings: params.print_timings,
+        n_threads: params.n_threads,
+    };
+    Ok((key, params))
 }
 
 pub fn init_backend() -> Result<(), String> {
@@ -763,6 +802,19 @@ pub fn apply_chat_template(
     add_assistant: bool,
 ) -> Result<String, String> {
     build_chat_prompt(model.model(), messages, template_override, add_assistant)
+}
+
+pub fn prewarm_multimodal_context(
+    context: &ContextHandle,
+    mmproj_path: String,
+    media_marker: Option<String>,
+) -> Result<(), String> {
+    let marker = media_marker.unwrap_or_else(|| mtmd_default_marker().to_string());
+    context.with_context_mut(|ctx| {
+        context
+            .cached_mtmd_context(ctx.model, &mmproj_path, &marker)
+            .map(|_| ())
+    })
 }
 
 pub fn generate_chat_stream(
@@ -935,35 +987,7 @@ pub fn generate_chat_stream(
             let mmproj_path = mmproj_path.ok_or_else(|| {
                 "mmproj_path is required when image_paths are provided".to_string()
             })?;
-            if !Path::new(&mmproj_path).exists() {
-                return Err(format!("mmproj file not found at {mmproj_path}"));
-            }
-
-            init_mtmd_logging();
-            take_mtmd_logs();
-
-            let media_marker = CString::new(marker.clone())
-                .map_err(|err| format_error("Invalid media marker", err))?;
-            let mtmd_params = MtmdContextParams {
-                use_gpu: false,
-                print_timings: false,
-                media_marker,
-                ..Default::default()
-            };
-
-            let mtmd_ctx = MtmdContext::init_from_file(&mmproj_path, ctx.model, &mtmd_params)
-                .map_err(|err| {
-                    let logs = take_mtmd_logs();
-                    if logs.trim().is_empty() {
-                        format_error("Failed to initialize mmproj", err)
-                    } else {
-                        format!("Failed to initialize mmproj: {err}. Logs: {logs}")
-                    }
-                })?;
-
-            if !mtmd_ctx.support_vision() {
-                return Err("Model does not support vision input".to_string());
-            }
+            let mtmd_ctx = context.cached_mtmd_context(ctx.model, &mmproj_path, &marker)?;
 
             let mut bitmaps = Vec::with_capacity(image_paths.len());
             for image_path in &image_paths {

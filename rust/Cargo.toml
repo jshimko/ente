@@ -1,0 +1,20 @@
+[workspace]
+resolver = "2"
+members = ["apps/cli", "apps/codegen", "crates/image"]
+exclude = [
+    "accounts",
+    "apps/ensu/src-tauri",
+    "contacts",
+    "core",
+    "e2e",
+    "ensu/db",
+    "ensu/inference",
+    "ensu/sync",
+    "ensu/transcription",
+    "photos",
+    "uniffi/core",
+    "uniffi/ensu/db",
+    "uniffi/ensu/inference",
+    "uniffi/ensu/sync",
+    "uniffi/ensu/transcription",
+]

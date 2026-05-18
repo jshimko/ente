@@ -505,7 +505,7 @@
   "pinLock": "Pinkodslås",
   "enterPin": "Ange PIN-kod",
   "setNewPin": "Ställ in ny PIN-kod",
-  "importFailureDescNew": "Kunde inte tolka den valda filen.",
+  "importFailureDesc": "Kunde inte tolka den valda filen.",
   "appLockNotEnabled": "Applås ej aktiverat",
   "appLockNotEnabledDescription": "Vänligen aktivera applås från Säkerhet > Applås",
   "authToViewPasskey": "Autentisera för att visa nyckel",
@@ -577,7 +577,7 @@
   "addNew": "Lägg till ny",
   "selected": "vald",
   "moveMultipleToTrashMessage": "Är du säker på att du vill flytta {count} objekt till papperskorgen?",
-  "nSelected": "{count, plural, one {}=1{1 vald} other{{count} valda}}",
+  "nSelected": "{count, plural, one {{count} vald} other{{count} valda}}",
   "@nSelected": {
     "description": "Text to indicate number of items selected",
     "placeholders": {
@@ -588,7 +588,7 @@
       }
     }
   },
-  "pinnedCount": "{count, plural, one {}=1{Fäst 1 objekt} other{Fäst {count} objekt}}",
+  "pinnedCount": "{count, plural, one {Fäst {count} objekt} other{Fäst {count} objekt}}",
   "@pinnedCount": {
     "description": "Text to show number of items pinned",
     "placeholders": {
@@ -599,7 +599,7 @@
       }
     }
   },
-  "unpinnedCount": "{count, plural, one {}=1{Fäst 1 objekt} other{Fäst {count} objekt}}",
+  "unpinnedCount": "{count, plural, one {Fäst {count} objekt} other{Fäst {count} objekt}}",
   "@unpinnedCount": {
     "description": "Text to show number of items unpinned",
     "placeholders": {

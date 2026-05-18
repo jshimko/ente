@@ -23,6 +23,7 @@ final _logger = Logger("ThumbnailUtil");
 final _uploadIDToDownloadItem = <int, FileDownloadItem>{};
 final _downloadQueue = Queue<int>();
 const int kMaximumConcurrentDownloads = 500;
+const int _noSuchFileOrDirectoryErrorCode = 2;
 
 class FileDownloadItem {
   final EnteFile file;
@@ -44,6 +45,27 @@ Future<Uint8List?> getThumbnail(EnteFile file) async {
   }
 }
 
+Future<({bool acquiredPendingRequestRef, Future<void> pendingRequest})>
+    preloadThumbnailWithPendingRequestRef(EnteFile file) async {
+  if (!file.isRemoteFile) {
+    unawaited(getThumbnailFromLocal(file));
+    return (
+      acquiredPendingRequestRef: false,
+      pendingRequest: Future<void>.value(),
+    );
+  }
+  final request = await _getThumbnailFromServerRequest(file);
+  final pendingRequest = request.future.then<void>(
+    (_) {},
+    onError: (_, __) {},
+  );
+  unawaited(pendingRequest);
+  return (
+    acquiredPendingRequestRef: request.acquiredPendingRequestRef,
+    pendingRequest: pendingRequest,
+  );
+}
+
 // Note: This method should only be called for files that have been uploaded
 // since cachedThumbnailPath depends on the file's uploadedID
 Future<File?> getThumbnailForUploadedFile(EnteFile file) async {
@@ -56,7 +78,17 @@ Future<File?> getThumbnailForUploadedFile(EnteFile file) async {
   if (thumbnail != null) {
     // it might be already written to this path during `getThumbnail(file)`
     if (!await cachedThumbnail.exists()) {
-      await cachedThumbnail.writeAsBytes(thumbnail, flush: true);
+      final didWrite = await _writeCachedThumbnail(
+        cachedThumbnail,
+        thumbnail,
+        flush: true,
+      );
+      if (!didWrite) {
+        _logger.info(
+          "Thumbnail obtained but not persisted for ${file.uploadedFileID}",
+        );
+        return null;
+      }
     }
     _logger.info("Thumbnail obtained for ${file.uploadedFileID}");
     return cachedThumbnail;
@@ -66,11 +98,19 @@ Future<File?> getThumbnailForUploadedFile(EnteFile file) async {
 }
 
 Future<Uint8List> getThumbnailFromServer(EnteFile file) async {
+  final request = await _getThumbnailFromServerRequest(file);
+  return request.future;
+}
+
+Future<({Future<Uint8List> future, bool acquiredPendingRequestRef})>
+    _getThumbnailFromServerRequest(EnteFile file) async {
   final cachedThumbnail = cachedThumbnailPath(file);
-  if (await cachedThumbnail.exists()) {
-    final data = await cachedThumbnail.readAsBytes();
-    ThumbnailInMemoryLruCache.put(file, data);
-    return data;
+  final cachedData = await _readCachedThumbnailIfPresent(cachedThumbnail, file);
+  if (cachedData != null) {
+    return (
+      future: Future<Uint8List>.value(cachedData),
+      acquiredPendingRequestRef: false,
+    );
   }
   // Check if there's already in flight request for fetching thumbnail from the
   // server
@@ -86,10 +126,16 @@ Future<Uint8List> getThumbnailFromServer(EnteFile file) async {
     }
     _downloadQueue.add(file.uploadedFileID!);
     _downloadItem(item);
-    return item.completer.future;
+    return (
+      future: item.completer.future,
+      acquiredPendingRequestRef: true,
+    );
   } else {
     _uploadIDToDownloadItem[file.uploadedFileID]!.counter++;
-    return _uploadIDToDownloadItem[file.uploadedFileID]!.completer.future;
+    return (
+      future: _uploadIDToDownloadItem[file.uploadedFileID]!.completer.future,
+      acquiredPendingRequestRef: true,
+    );
   }
 }
 
@@ -104,9 +150,12 @@ Future<Uint8List?> getThumbnailFromLocal(
   }
   if (file.isUploaded) {
     final cachedThumbnail = cachedThumbnailPath(file);
-    if ((await cachedThumbnail.exists())) {
-      final data = await cachedThumbnail.readAsBytes();
-      ThumbnailInMemoryLruCache.put(file, data);
+    final data = await _readCachedThumbnailIfPresent(
+      cachedThumbnail,
+      file,
+      size: size,
+    );
+    if (data != null) {
       return data;
     }
   }
@@ -201,7 +250,10 @@ Future<void> _downloadAndDecryptThumbnail(FileDownloadItem item) async {
   if (!_uploadIDToDownloadItem.containsKey(file.uploadedFileID)) {
     return;
   }
-  final thumbnailDecryptionKey = await getFileKeyUsingBgWorker(file);
+  final thumbnailDecryptionKey =
+      CollectionsService.instance.isSharedPublicLink(file.collectionID!)
+          ? await getPublicFileKeyUsingBgWorker(file)
+          : await getFileKeyUsingBgWorker(file);
   Uint8List data;
   try {
     data = await CryptoUtil.decryptChaCha(
@@ -220,11 +272,8 @@ Future<void> _downloadAndDecryptThumbnail(FileDownloadItem item) async {
   }
   ThumbnailInMemoryLruCache.put(item.file, data);
   final cachedThumbnail = cachedThumbnailPath(item.file);
-  if (await cachedThumbnail.exists()) {
-    await cachedThumbnail.delete();
-  }
-  // data is already cached in-memory, no need to await on dist write
-  unawaited(cachedThumbnail.writeAsBytes(data));
+  // data is already cached in-memory, no need to await on disk write
+  unawaited(_writeCachedThumbnail(cachedThumbnail, data));
   if (_uploadIDToDownloadItem.containsKey(file.uploadedFileID)) {
     try {
       item.completer.complete(data);
@@ -235,6 +284,67 @@ Future<void> _downloadAndDecryptThumbnail(FileDownloadItem item) async {
     }
   }
 }
+
+Future<Uint8List?> _readCachedThumbnailIfPresent(
+  File cachedThumbnail,
+  EnteFile file, {
+  int? size,
+}) async {
+  if (!await cachedThumbnail.exists()) {
+    return null;
+  }
+  try {
+    final data = await cachedThumbnail.readAsBytes();
+    ThumbnailInMemoryLruCache.put(file, data, size);
+    return data;
+  } on FileSystemException catch (e) {
+    if (_isPathMissing(e)) {
+      _logger.info(
+        "Thumbnail cache file missing during read; treating as cache miss: "
+        "${cachedThumbnail.path}",
+      );
+      return null;
+    }
+    rethrow;
+  }
+}
+
+Future<bool> _writeCachedThumbnail(
+  File cachedThumbnail,
+  Uint8List data, {
+  bool flush = false,
+}) async {
+  try {
+    await cachedThumbnail.writeAsBytes(data, flush: flush);
+    return true;
+  } on FileSystemException catch (e) {
+    if (!_isPathMissing(e)) {
+      rethrow;
+    }
+    _logger.info(
+      "Thumbnail cache directory missing during write; recreating: "
+      "${cachedThumbnail.parent.path}",
+    );
+    await cachedThumbnail.parent.create(recursive: true);
+    try {
+      await cachedThumbnail.writeAsBytes(data, flush: flush);
+      return true;
+    } on FileSystemException catch (retryError) {
+      if (_isPathMissing(retryError)) {
+        _logger.info(
+          "Thumbnail cache path still missing after recreate; skipping write: "
+          "${cachedThumbnail.path}",
+        );
+        return false;
+      }
+      rethrow;
+    }
+  }
+}
+
+bool _isPathMissing(FileSystemException e) =>
+    e is PathNotFoundException ||
+    e.osError?.errorCode == _noSuchFileOrDirectoryErrorCode;
 
 File cachedThumbnailPath(EnteFile file) {
   final thumbnailCacheDirectory =

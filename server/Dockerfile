@@ -7,6 +7,7 @@ RUN apk update && apk upgrade
 RUN apk add --no-cache gcc musl-dev git build-base pkgconfig
 
 ENV GOOS=linux
+ENV CGO_ENABLED=0
 
 WORKDIR /etc/ente/
 
@@ -16,7 +17,7 @@ RUN go mod download
 
 COPY . .
 RUN --mount=type=cache,target=/root/.cache/go-build \
-  go build -o museum cmd/museum/main.go
+  go build -trimpath -o museum cmd/museum/main.go
 
 FROM alpine:${ALPINE_VERSION}
 

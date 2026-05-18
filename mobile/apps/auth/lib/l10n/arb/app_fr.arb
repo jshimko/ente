@@ -333,7 +333,6 @@
     }
   },
   "sorry": "Désolé",
-  "importFailureDesc": "Impossible d'analyser le fichier sélectionné.\nVeuillez écrire à support@ente.com si vous avez besoin d'aide !",
   "pendingSyncs": "Attention",
   "pendingSyncsWarningBody": "Certains de vos codes n'ont pas été sauvegardés.\n\nVeuillez vous assurer que vous avez une sauvegarde de ces codes avant de vous déconnecter.",
   "checkInboxAndSpamFolder": "Veuillez consulter votre boîte de courriels (et les spam) pour compléter la vérification",
@@ -509,7 +508,7 @@
   "pinLock": "Verrouillage par code PIN",
   "enterPin": "Saisir le code PIN",
   "setNewPin": "Définir un nouveau code PIN",
-  "importFailureDescNew": "Impossible de lire le fichier sélectionné.",
+  "importFailureDesc": "Impossible de lire le fichier sélectionné.",
   "appLockNotEnabled": "Verrouillage d'application désactivé",
   "appLockNotEnabledDescription": "Activez le verrouillage d'application dans Sécurité > Verrouillage d'application",
   "authToViewPasskey": "Veuillez vous authentifier pour afficher la clé d'accès",
@@ -581,7 +580,7 @@
   "addNew": "Ajouter un nouveau",
   "selected": "Sélectionné",
   "moveMultipleToTrashMessage": "Êtes-vous sûr de vouloir déplacer {count} éléments vers la corbeille ?",
-  "nSelected": "{count, plural, one {}=1{1 sélectionné} other{{count} sélectionné}}",
+  "nSelected": "{count, plural, one {{count} sélectionné} other {{count} sélectionnés}}",
   "@nSelected": {
     "description": "Text to indicate number of items selected",
     "placeholders": {
@@ -592,7 +591,7 @@
       }
     }
   },
-  "pinnedCount": "{count, plural, one {}=1{Épinglé 1 élément} other{Épinglé {count} objets}}",
+  "pinnedCount": "{count, plural, one{Épinglé {count} élément} other{Épinglé {count} éléments}}",
   "@pinnedCount": {
     "description": "Text to show number of items pinned",
     "placeholders": {
@@ -603,7 +602,7 @@
       }
     }
   },
-  "unpinnedCount": "{count, plural, one {}=1{Désépinglé 1 élément} other{Désépinglé {count} objets}}",
+  "unpinnedCount": "{count, plural, one{Désépinglé {count} élément} other{Désépinglé {count} éléments}}",
   "@unpinnedCount": {
     "description": "Text to show number of items unpinned",
     "placeholders": {

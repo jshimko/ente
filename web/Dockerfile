@@ -1,5 +1,5 @@
 # Docs - https://github.com/ente-io/ente/blob/main/web/docs/docker.md
-ARG NODE_VERSION=24.14.1
+ARG NODE_VERSION=24.15.0
 ARG NGINX_VERSION=1.29.7
 
 FROM node:${NODE_VERSION} AS builder
@@ -10,8 +10,6 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --de
 ENV PATH="/root/.cargo/bin:${PATH}"
 
 ENV NEXT_PUBLIC_ENTE_ENDPOINT=ENTE_API_ORIGIN_PLACEHOLDER
-ENV NEXT_PUBLIC_ENTE_ALBUMS_ENDPOINT=ENTE_ALBUMS_ORIGIN_PLACEHOLDER
-ENV NEXT_PUBLIC_ENTE_PHOTOS_ENDPOINT=ENTE_PHOTOS_ORIGIN_PLACEHOLDER
 
 RUN corepack enable && corepack prepare yarn@1.22.22 --activate
 
@@ -137,6 +135,10 @@ server {
     listen 3008; root /out/paste;
     location / { try_files \$uri \$uri.html /index.html; }
 }
+server {
+    listen 3010; root /out/memories;
+    location / { try_files \$uri \$uri.html /index.html; }
+}
 EOF
 
 EXPOSE 3000
@@ -148,22 +150,13 @@ EXPOSE 3005
 EXPOSE 3006
 EXPOSE 3007
 EXPOSE 3008
+EXPOSE 3010
 
 ENV ENTE_API_ORIGIN=http://localhost:8080
-ENV ENTE_ALBUMS_ORIGIN=http://localhost:3002
-ENV ENTE_PHOTOS_ORIGIN=http://localhost:3000
 
 COPY <<EOF /docker-entrypoint.d/90-replace-ente-env.sh
 find /out -name '*.js' |
     xargs sed -i'' "s#ENTE_API_ORIGIN_PLACEHOLDER#\$ENTE_API_ORIGIN#g"
-find /out/photos -name '*.js' |
-    xargs sed -i'' "s#ENTE_ALBUMS_ORIGIN_PLACEHOLDER#\$ENTE_ALBUMS_ORIGIN#g"
-find /out/albums -name '*.js' |
-    xargs sed -i'' "s#ENTE_ALBUMS_ORIGIN_PLACEHOLDER#\$ENTE_ALBUMS_ORIGIN#g"
-find /out/photos -name '*.js' |
-    xargs sed -i'' "s#ENTE_PHOTOS_ORIGIN_PLACEHOLDER#\$ENTE_PHOTOS_ORIGIN#g"
-find /out/albums -name '*.js' |
-    xargs sed -i'' "s#ENTE_PHOTOS_ORIGIN_PLACEHOLDER#\$ENTE_PHOTOS_ORIGIN#g"
 EOF
 
 RUN chmod +x /docker-entrypoint.d/90-replace-ente-env.sh

@@ -1,7 +1,6 @@
 ---
 title: Configuration - Self-hosting
-description:
-    "Information about all the configuration variables needed to run Ente with
+description: "Information about all the configuration variables needed to run Ente with
     museum.yaml"
 ---
 
@@ -64,7 +63,7 @@ above and `ENTE_S3_B2_EU_CEN_ENDPOINT` overrides `s3.b2-eu-cen.endpoint`.
 
 ### App Endpoints
 
-The web apps for Ente (Accounts, Cast, Albums, Share, Paste, Embed) use
+The web apps for Ente (Accounts, Cast, Albums, Share, Paste, Embed, Memories) use
 different endpoints.
 
 These endpoints are configurable in `museum.yaml` under the apps.\* section.
@@ -73,17 +72,17 @@ Upon configuration, the application will start utilizing the specified endpoints
 instead of Ente's production instances or local endpoints (overridden values
 used for Compose and quickstart for ease of use.)
 
-| Variable                   | Description                                             | Default                    |
-| -------------------------- | ------------------------------------------------------- | -------------------------- |
-| `apps.public-albums`       | Albums app base endpoint for public sharing             | `https://albums.ente.io`   |
-| `apps.public-locker`       | Public Locker (share) app base endpoint                 | `https://share.ente.io`    |
-| `apps.public-paste`        | Ente Paste app base endpoint                            | `https://paste.ente.io`    |
-| `apps.cast`                | Cast app base endpoint                                  | `https://cast.ente.io`     |
-| `apps.embed-albums`        | Embed app base endpoint for embedded sharing            | `https://embed.ente.io`    |
-| `apps.accounts`            | Accounts app base endpoint (used for passkey-based 2FA) | `https://accounts.ente.io` |
-| `apps.family`              | Family portal base endpoint                             | `https://family.ente.io`   |
-| `apps.public-memories`     | Public memory shares base endpoint                      | `https://memories.ente.io` |
-| `apps.custom-domain.cname` | Custom domain CNAME for user-facing links               | `my.ente.io`               |
+| Variable                   | Description                                             | Default                     |
+| -------------------------- | ------------------------------------------------------- | --------------------------- |
+| `apps.public-albums`       | Albums app base endpoint for public sharing             | `https://albums.ente.com`   |
+| `apps.public-locker`       | Public Locker (share) app base endpoint                 | `https://share.ente.com`    |
+| `apps.public-paste`        | Ente Paste app base endpoint                            | `https://paste.ente.com`    |
+| `apps.cast`                | Cast app base endpoint                                  | `https://cast.ente.com`     |
+| `apps.embed-albums`        | Embed app base endpoint for embedded sharing            | `https://embed.ente.com`    |
+| `apps.accounts`            | Accounts app base endpoint (used for passkey-based 2FA) | `https://accounts.ente.com` |
+| `apps.family`              | Family portal base endpoint                             | `https://family.ente.com`   |
+| `apps.public-memories`     | Public memory shares base endpoint                      | `https://memories.ente.com` |
+| `apps.custom-domain.cname` | Custom domain CNAME for user-facing links               | `my.ente.com`               |
 
 ### Database
 
