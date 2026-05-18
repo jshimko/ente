@@ -4,8 +4,8 @@ Reference guide for the Ente Photos mobile app. For monorepo-wide guidance (shar
 
 **Purpose:** End-to-end encrypted photo backup and management app built with Flutter/Dart. Largest app in the Ente mobile monorepo (400+ dependencies, 50+ services, ML features, Rust FFI).
 
-**Documented:** 2026-04-13
-**Commit:** 918c6a1986
+**Documented:** 2026-05-18
+**Commit:** a203b25e7e
 
 ---
 
@@ -140,10 +140,11 @@ Background boot (Workmanager):
 | ---------------------------------------- | ------------------------------------------------------------ |
 | `lib/main.dart`                          | App entry point, background task dispatcher, sync scheduling |
 | `lib/app.dart`                           | Root widget (EnteApp), locale changes, deeplink routing      |
-| `lib/app_mode.dart`                      | Online/offline mode management                               |
-| `lib/service_locator.dart`               | All service singletons (38 lazy getters)                     |
+| `lib/app_mode.dart`                      | App mode enum (`enteGallery` / `localGallery`); local gallery is the no-account on-device library experience |
+| `lib/service_locator.dart`               | All service singletons (39 lazy getters)                     |
 | `lib/core/configuration.dart`            | User config, encryption keys, secure storage (26KB)          |
 | `lib/core/network/network.dart`          | Dio HTTP clients (enteDio, nonEnteDio)                       |
+| `lib/core/network/endpoint_config.dart`  | Server endpoint config decoupled from startup; listens for `EndpointUpdatedEvent` for runtime endpoint switching |
 | `lib/core/network/ente_interceptor.dart` | Auth token injection, error handling                         |
 | `lib/core/event_bus.dart`                | Event bus singleton (`Bus.instance`)                         |
 | `lib/ente_theme_data.dart`               | Light/dark Material theme definitions                        |
@@ -152,11 +153,11 @@ Background boot (Workmanager):
 
 | Pattern          | Implementation                               | Access                                                     |
 | ---------------- | -------------------------------------------- | ---------------------------------------------------------- |
-| Service Locator  | `lib/service_locator.dart`                   | `ServiceLocator.instance`, 38 lazy getters at module level |
+| Service Locator  | `lib/service_locator.dart`                   | `ServiceLocator.instance`, 39 lazy getters at module level |
 | Event Bus        | `lib/core/event_bus.dart`                    | `Bus.instance.on<T>().listen()` / `Bus.instance.fire()`    |
 | Gateway Pattern  | `lib/gateways/` (11 subdirs)                 | Services -> Gateways -> Dio -> Museum API                  |
-| SQLite DB Layer  | `lib/db/` (15 files)                         | `sqlite_async` with `SqlDbBase` mixin from `db/common/`    |
-| Rust FFI         | `rust/` + `rust_builder/`                    | `flutter_rust_bridge` codegen, `EntePhotosRust.init()`     |
+| SQLite DB Layer  | `lib/db/` (13 top-level + `db/ml/` subsystem) | `sqlite_async` with `SqlDbBase` mixin from `db/common/`   |
+| Rust FFI         | `rust/` + `rust_builder/`                    | `flutter_rust_bridge` codegen — ML inference, image decoding (Android HEIC/.hif), crypto; `EntePhotosRust.init()` |
 | Isolate Compute  | `services/machine_learning/ml_computer.dart` | Dedicated isolate for ML inference                         |
 | Background Tasks | `lib/utils/bg_task_utils.dart`               | Workmanager (iOS 30min, Android 15min intervals)           |
 | Caching          | `lib/core/cache/`                            | `LRUMap`, image/thumbnail/video caches                     |
@@ -167,6 +168,14 @@ Background boot (Workmanager):
 - BIP39 mnemonic-based key generation (24 words)
 - Secure storage using platform-specific implementations (iOS Keychain, Android EncryptedSharedPreferences)
 - App lock and privacy screen features via `ente_lock_screen` package
+
+### Endpoint Configuration
+
+The Photos server endpoint is configured independently of app startup via `core/network/endpoint_config.dart`. `NetworkClient.init()` constructs `EndpointConfig(preferences)` and listens for `EndpointUpdatedEvent` to switch backends at runtime — this is what powers the developer-settings flow for pointing the app at a self-hosted Museum instance without restarting.
+
+### Internal Feature Gating
+
+Experimental features ship behind the `internalUser` flag in `plugins/ente_feature_flag/`. Examples in production: video streaming toggle, Rust ML rollout, video editor codec selection. The flag respects a debug-mode default plus a persistent toggle stored at `ls.internal_user_disabled`. Read it via `flagService.internalUser`.
 
 ---
 
@@ -219,16 +228,22 @@ All services in `lib/services/`. Most are singletons accessed via lazy getters i
 | MLComputer             | `services/machine_learning/ml_computer.dart`                             | Dedicated ML isolate           |
 | FaceThumbnailGenerator | `services/machine_learning/face_thumbnail_generator.dart`                | Face crop thumbnails           |
 
+**Model integrity:** ML model files are hash-checked on download. When the ONNX runtime fails on a model (e.g., corrupted CLIP text encoder), the model file is deleted, indexing pauses, and the file is re-downloaded on the next sync. This avoids infinite retry loops on broken model state and is the primary reason both decoders writing empty ML results is preferable to throwing.
+
 ### Memories
 
-| Service                | File                                                  | Purpose                    |
-| ---------------------- | ----------------------------------------------------- | -------------------------- |
-| MemoryLaneService      | `services/memory_lane/memory_lane_service.dart`       | On-this-day memories       |
-| MemoryLaneCacheService | `services/memory_lane/memory_lane_cache_service.dart` | Memory lane caching        |
-| SmartMemoriesService   | `services/smart_memories_service.dart`                | AI-powered memory curation |
-| MemoriesCacheService   | `services/memories_cache_service.dart`                | Memory caching (37KB)      |
-| MemoryShareService     | `services/memory_share_service.dart`                  | Memory sharing (28KB)      |
-| VideoMemoryService     | `services/video_memory_service.dart`                  | Video memory creation      |
+| Service                       | File                                                  | Purpose                                      |
+| ----------------------------- | ----------------------------------------------------- | -------------------------------------------- |
+| MemoryLaneService             | `services/memory_lane/memory_lane_service.dart`       | On-this-day memories                         |
+| MemoryLaneCacheService        | `services/memory_lane/memory_lane_cache_service.dart` | Memory lane caching                          |
+| SmartMemoriesService          | `services/smart_memories_service.dart`                | AI-powered memory curation orchestrator      |
+| SmartMemoriesClipCalculator   | `services/smart_memories_clip_calculator.dart`        | CLIP-driven memory candidate scoring         |
+| SmartMemoriesPeopleCalculator | `services/smart_memories_people_calculator.dart`      | People/face-based memory grouping            |
+| SmartMemoriesTimeCalculator   | `services/smart_memories_time_calculator.dart`        | Time-window memory selection                 |
+| SmartMemoriesTripCalculator   | `services/smart_memories_trip_calculator_v2.dart`     | Trip/location memory detection (v2)          |
+| MemoriesCacheService          | `services/memories_cache_service.dart`                | Memory caching                               |
+| MemoryShareService            | `services/memory_share_service.dart`                  | Public memory sharing (7-day TTL)            |
+| VideoMemoryService            | `services/video_memory_service.dart`                  | Video memory creation                        |
 
 ### Social & Sharing
 
@@ -287,7 +302,9 @@ All services in `lib/services/`. Most are singletons accessed via lazy getters i
 
 ## Database Reference
 
-All databases in `lib/db/`. Uses `sqlite_async` with migration via `PRAGMA user_version`. Base mixin: `db/common/`.
+All databases in `lib/db/`. Uses `sqlite_async` with migration via `PRAGMA user_version`. The `SqlDbBase` mixin in `db/common/base.dart` provides migration plumbing; conflict resolution helpers live in `db/common/conflict_algo.dart`.
+
+### Top-level databases
 
 | Database           | File                           | Stores                             |
 | ------------------ | ------------------------------ | ---------------------------------- |
@@ -297,7 +314,6 @@ All databases in `lib/db/`. Uses `sqlite_async` with migration via `PRAGMA user_
 | TrashDB            | `db/trash_db.dart`             | Deleted files                      |
 | MemoriesDB         | `db/memories_db.dart`          | Memory records                     |
 | MemorySharesDB     | `db/memory_shares_db.dart`     | Shared memories                    |
-| MLDB               | `db/ml/db.dart`                | Face embeddings, clusters, ML data |
 | EntitiesDB         | `db/entities_db.dart`          | Collaborative entities             |
 | SocialDB           | `db/social_db.dart`            | Comments, social data              |
 | UploadLocksDB      | `db/upload_locks_db.dart`      | Upload state tracking              |
@@ -305,6 +321,20 @@ All databases in `lib/db/`. Uses `sqlite_async` with migration via `PRAGMA user_
 | GalleryDownloadsDB | `db/gallery_downloads_db.dart` | Downloaded files                   |
 | OfflineFilesDB     | `db/offline_files_db.dart`     | Offline mode files                 |
 | IgnoredFilesDB     | `db/ignored_files_db.dart`     | Files excluded from backup         |
+
+### ML database subsystem (`db/ml/`)
+
+| File                              | Purpose                                          |
+| --------------------------------- | ------------------------------------------------ |
+| `db.dart`                         | ML DB orchestrator                               |
+| `schema.dart`                     | ML table schemas and migrations                  |
+| `base.dart`                       | Shared mixin for ML DB tables                    |
+| `clip_vector_db.dart`             | CLIP image/text embedding vectors                |
+| `cluster_centroid_vector_db.dart` | Face cluster centroid vectors                    |
+| `pet_vector_db.dart`              | Pet detection embedding vectors                  |
+| `db_model_mappers.dart`           | Face/CLIP model ↔ DB row mapping                 |
+| `db_pet_model_mappers.dart`       | Pet model ↔ DB row mapping                       |
+| `filedata.dart`                   | ML-side file data table                          |
 
 ---
 
@@ -348,9 +378,10 @@ All UI in `lib/ui/`.
 | `ui/cast/`         | Casting         | Chromecast UI                        |
 | `ui/wrapped/`      | Year wrap       | Year-end highlights                  |
 | `ui/rituals/`      | Reminders       | Daily/recurring reminders            |
+| `ui/picker/`       | Pickers         | File/album picker flows              |
 | `ui/tools/`        | Editing         | Image/video editing, app lock        |
 | `ui/actions/`      | Context menus   | File/album actions                   |
-| `ui/components/`   | Shared widgets  | 7 component subdirectories           |
+| `ui/components/`   | Shared widgets  | Component subdirectories             |
 | `ui/common/`       | Common widgets  | Theme-aware reusable components      |
 | `ui/growth/`       | Referrals       | Growth/referral UI                   |
 | `ui/notification/` | Notifications   | In-app notification UI               |
@@ -382,7 +413,7 @@ All UI in `lib/ui/`.
 
 ## Key Models Reference
 
-All models in `lib/models/` (18 subdirectories).
+All models in `lib/models/`, organized by domain (account, collection, file, location, memories, ml, search, etc.).
 
 | Model              | File                                    | Description                                      |
 | ------------------ | --------------------------------------- | ------------------------------------------------ |
@@ -425,17 +456,17 @@ lib/
 │   ├── filedata/          # File metadata service
 │   ├── filter/            # Search filter implementations
 │   └── permission/        # Permission management
-├── ui/                    # UI components (21 subdirectories)
-├── models/                # Data models (18 subdirectories)
-├── db/                    # SQLite database layer (15 files)
-│   ├── common/            # SqlDbBase mixin, migration helpers
-│   └── ml/                # ML-specific database
-├── utils/                 # Utilities and helpers (38+ files)
+├── ui/                    # UI screens and components
+├── models/                # Data models (account, collection, file, location, memories, ml, etc.)
+├── db/                    # SQLite database layer (13 top-level DBs + db/ml/ + db/common/)
+│   ├── common/            # SqlDbBase mixin, conflict-resolution algorithms
+│   └── ml/                # Face/CLIP/pet vector DBs, schema, mappers
+├── utils/                 # Utilities and helpers
 ├── gateways/              # API gateway interfaces (11 subdirectories)
 ├── module/                # Upload/download management
 │   ├── upload/            # Multipart upload, S3 XML parsing
 │   └── download/          # Download queue, file URL resolution
-├── events/                # Event bus events (63 types)
+├── events/                # Event bus events (64 types)
 ├── states/                # UI state classes
 ├── extensions/            # Dart extensions on core types
 ├── l10n/                  # Localization ARB files
@@ -448,15 +479,13 @@ lib/
 
 Located in `plugins/`. These are NOT shared with Auth/Locker.
 
-| Plugin              | Directory                    | Purpose                                    |
-| ------------------- | ---------------------------- | ------------------------------------------ |
-| `ente_crypto`       | `plugins/ente_crypto/`       | Encryption via libsodium (flutter_sodium)  |
-| `ente_cast`         | `plugins/ente_cast/`         | Chromecast interface abstraction           |
-| `ente_cast_none`    | `plugins/ente_cast_none/`    | No-op cast (F-Droid builds without Google) |
-| `ente_cast_normal`  | `plugins/ente_cast_normal/`  | Standard Chromecast implementation         |
-| `ente_feature_flag` | `plugins/ente_feature_flag/` | Feature flag management                    |
-| `ente_qr`           | `plugins/ente_qr/`           | QR code generation/scanning                |
-| `onnx_dart`         | `plugins/onnx_dart/`         | ONNX ML model runtime                      |
+| Plugin              | Directory                    | Purpose                                                                                              |
+| ------------------- | ---------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `ente_crypto`       | `plugins/ente_crypto/`       | Encryption via libsodium (flutter_sodium)                                                            |
+| `ente_cast`         | `plugins/ente_cast/`         | Chromecast interface (Google Play vs F-Droid implementations are wired in at the app/flavor layer)   |
+| `ente_feature_flag` | `plugins/ente_feature_flag/` | Feature flags including the `internalUser` gate for experimental features                            |
+| `ente_qr`           | `plugins/ente_qr/`           | QR code generation/scanning                                                                          |
+| `onnx_dart`         | `plugins/onnx_dart/`         | ONNX ML model runtime                                                                                |
 
 ---
 
@@ -532,10 +561,11 @@ Located in `plugins/`. These are NOT shared with Auth/Locker.
 ## Key Dependencies
 
 - **Flutter 3.38.10** with Dart SDK >=3.10.0 <4.0.0
-- **Media**: `photo_manager`, `video_editor`, `ffmpeg_kit_flutter`
+- **Media**: `photo_manager`, `video_editor`, `ffmpeg_kit_flutter`, `media_kit`
 - **Storage**: `sqlite_async`, `flutter_secure_storage`
-- **ML/AI**: Custom ONNX runtime, `ml_linalg`
-- **Rust**: Flutter Rust Bridge for performance
+- **ML/AI**: Custom ONNX runtime (`onnx_dart` plugin), `ml_linalg`
+- **Rust**: `flutter_rust_bridge` 2.12.0 for ML inference, HEIC decoding, crypto
+- **Forks**: Heavy use of git-forked dependencies (`ffmpeg-kit`, `flutter_sodium`, `video_editor`, `media_kit`, `panorama`, `privacy_screen`, `battery_info`, etc.) for privacy/feature control. Always check `pubspec.yaml` git references before bumping these.
 - **Network**: `dio` with `native_dio_adapter`
 - **State**: `event_bus` for pub/sub, `adaptive_theme` for theming
 - **Contacts**: `ente_contacts` shared package for contacts management

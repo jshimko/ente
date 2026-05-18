@@ -2,10 +2,10 @@
 
 Reference guide for the Ente mobile monorepo workspace. For app-specific guidance, see the CLAUDE.md files linked in the navigation map below.
 
-**Purpose:** Flutter/Dart monorepo containing three Ente mobile apps (Photos, Auth, Locker) and 23 shared packages, managed by Melos.
+**Purpose:** Flutter/Dart monorepo containing three Ente mobile apps (Photos, Auth, Locker) and 24 shared packages, managed by Melos.
 
-**Documented:** 2026-04-05
-**Commit:** 9f38e62e09
+**Documented:** 2026-05-18
+**Commit:** a203b25e7e
 
 ---
 
@@ -25,7 +25,7 @@ Reference guide for the Ente mobile monorepo workspace. For app-specific guidanc
 | Rust FFI bindings              | `packages/rust/`                  | —                                |
 | App configuration              | `packages/configuration/`         | —                                |
 | Photos-specific plugins        | `apps/photos/plugins/`            | —                                |
-| Native iOS/Android code        | `native/`                         | `native/AGENTS.md`              |
+| Native iOS/Android code        | `native/`                         | —                                |
 | Melos workspace config         | `melos.yaml`                      | —                                |
 | Lint rules                     | `analysis_options.yaml`           | —                                |
 
@@ -36,22 +36,20 @@ Reference guide for the Ente mobile monorepo workspace. For app-specific guidanc
 ```
 mobile/
 ├── apps/
-│   ├── photos/              # Photo backup & management (v1.3.29+1761)
+│   ├── photos/              # Photo backup & management (v1.3.45+1785)
 │   │   ├── lib/             # Main Dart source (services, ui, models, db, gateways)
 │   │   ├── plugins/         # Photos-specific Flutter plugins
-│   │   │   ├── ente_cast/           # Chromecast integration
-│   │   │   ├── ente_cast_none/      # No-op cast variant
-│   │   │   ├── ente_cast_normal/    # Standard cast variant
+│   │   │   ├── ente_cast/           # Chromecast integration (variants wired at flavor layer)
 │   │   │   ├── ente_crypto/         # Encryption primitives
 │   │   │   ├── ente_feature_flag/   # Feature flags
 │   │   │   ├── ente_qr/            # QR code handling
 │   │   │   └── onnx_dart/          # ML/ONNX runtime
 │   │   └── rust_builder/    # Photos-specific Rust FFI
-│   ├── auth/                # 2FA authenticator app (v4.4.18+755)
+│   ├── auth/                # 2FA authenticator app (v4.4.23+877)
 │   │   └── lib/             # Main Dart source
-│   └── locker/              # Secure document storage (v1.0.1+95)
+│   └── locker/              # Secure document storage (v1.0.4+104)
 │       └── lib/             # Main Dart source
-├── packages/                # 23 shared Dart packages (see reference below)
+├── packages/                # 24 shared Dart packages (see reference below)
 ├── native/                  # Native iOS/Android code (Swift, Kotlin)
 │   ├── android/             # Kotlin/Gradle modules
 │   └── darwin/              # Swift/Xcode projects
@@ -65,11 +63,11 @@ mobile/
 
 ## Apps Summary
 
-| App     | Package Name | Version        | Dart SDK       | Entry Point      | Platforms              |
-| ------- | ------------ | -------------- | -------------- | ---------------- | ---------------------- |
-| Photos  | `photos`     | 1.3.29+1761    | >=3.3.0 <4.0.0 | `lib/main.dart` | Android, iOS           |
-| Auth    | `ente_auth`  | 4.4.18+755     | >=3.0.0 <4.0.0 | `lib/main.dart` | Android, iOS, Desktop  |
-| Locker  | `locker`     | 1.0.1+95       | >=3.0.0 <4.0.0 | `lib/main.dart` | Android, iOS, Desktop  |
+| App     | Package Name | Version        | Dart SDK         | Entry Point      | Platforms              |
+| ------- | ------------ | -------------- | ---------------- | ---------------- | ---------------------- |
+| Photos  | `photos`     | 1.3.45+1785    | >=3.10.0 <4.0.0 | `lib/main.dart`  | Android, iOS           |
+| Auth    | `ente_auth`  | 4.4.23+877     | >=3.10.0 <4.0.0 | `lib/main.dart`  | Android, iOS, Desktop  |
+| Locker  | `locker`     | 1.0.4+104      | >=3.10.0 <4.0.0 | `lib/main.dart`  | Android, iOS, Desktop  |
 
 - **Photos** is the largest app (400+ dependencies, 28+ services, ML features, Rust integration)
 - **Auth** is the 2FA authenticator with QR scanning, TOTP/HOTP support, cloud backup
@@ -107,11 +105,12 @@ mobile/
 
 ### UI & Presentation
 
-| Package        | Directory              | Purpose                                                    |
-| -------------- | ---------------------- | ---------------------------------------------------------- |
-| `ente_ui`      | `packages/ui/`         | Design system: buttons, dialogs, layout, theming (52 Dart files) |
-| `log_viewer`   | `packages/log_viewer/` | In-app log viewer with SQLite storage and filtering        |
-| `ente_qr_ui`   | `packages/qr/`         | QR code generation and sharing UI                          |
+| Package            | Directory                      | Purpose                                                    |
+| ------------------ | ------------------------------ | ---------------------------------------------------------- |
+| `ente_ui`          | `packages/ui/`                 | Design system: buttons, dialogs, layout, theming (52 Dart files) |
+| `ente_components`  | `packages/ente_components/`    | Shared design-system components (color tokens, app bar, bottom sheets, icon sizing) |
+| `log_viewer`       | `packages/log_viewer/`         | In-app log viewer with SQLite storage and filtering        |
+| `ente_qr_ui`       | `packages/qr/`                 | QR code generation and sharing UI                          |
 
 ### Feature Packages
 
@@ -181,7 +180,7 @@ All apps use lazy-initialized singletons. No DI framework (no GetIt, no Riverpod
 FlagService? _flagService;
 FlagService get flagService => _flagService ??= FlagService(...);
 ```
-- Photos: `apps/photos/lib/service_locator.dart` (374 lines, 30+ services)
+- Photos: `apps/photos/lib/service_locator.dart` (377 lines, 39 lazy getters)
 - Locker/Auth: Services initialized in `main.dart`
 
 ### Event Bus
@@ -230,7 +229,9 @@ melos run codegen:rust             # Generate Rust bindings for all packages
 melos run codegen:rust:packages    # Rust bindings for packages/rust only
 melos run codegen:rust:photos      # Rust bindings for apps/photos only
 melos run get:all                  # flutter pub get in all projects
+melos run get:plugins              # flutter pub get in apps/photos/plugins/* only
 melos run clean:all                # flutter clean in all projects
+melos run clean:plugins            # flutter clean in apps/photos/plugins/* only
 ```
 
 ### App-Specific (via Melos)
@@ -291,6 +292,8 @@ Strict rules enforced in `analysis_options.yaml` (shared across all apps/package
 | `unawaited_futures`          | WARNING  | Explicitly handle or `unawaited()` futures|
 | `prefer_const_constructors`  | WARNING  | Use `const` where possible                |
 | `prefer_double_quotes`       | IGNORED  | Not enforced despite being listed         |
+
+Additional ERROR-level rules are enforced (e.g., `avoid_empty_else`, `exhaustive_cases`, `directives_ordering`, `unrelated_type_equality_checks`, `unnecessary_const`, `camel_case_types`). See `analysis_options.yaml` for the full set.
 
 **Mandatory pre-commit checks:**
 ```bash
@@ -384,5 +387,5 @@ cd mobile && melos run codegen:rust         # Generates for both packages/rust a
 6. **Melos scope names must match `pubspec.yaml` `name` fields** — `photos`, `ente_auth`, `locker`
 7. **Rust codegen must run after Rust source changes** — both `packages/rust` and `apps/photos` have separate codegen targets
 8. **Desktop apps need window init before `runApp()`** — Locker and Auth initialize `windowManager` in `main.dart` before the app starts
-9. **Flutter version locked at 3.32.8** — CI uses this exact version; mismatched versions may cause build failures
+9. **Flutter 3.38.10 required** — pinned in `mobile/.fvmrc` and in every CI workflow (`FLUTTER_VERSION: "3.38.10"`); matches the `>=3.10.0 <4.0.0` Dart SDK constraint in `apps/*/pubspec.yaml`. Melos invokes Flutter via the FVM symlink (`sdkPath: .fvm/flutter_sdk` in `melos.yaml`), so `fvm install 3.38.10` is required before running any `melos run …` commands
 10. **Cancel stream subscriptions** — `cancel_subscriptions` is ERROR level; always cancel in `dispose()`
