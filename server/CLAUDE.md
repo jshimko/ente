@@ -2,8 +2,8 @@
 
 Go API server powering all Ente clients (Photos, Auth, Locker). Handles authentication, E2EE key management, file metadata, billing, and multi-datacenter object replication.
 
-**Documented:** 2026-04-13
-**Commit:** 918c6a1986
+**Documented:** 2026-05-18
+**Commit:** 1a73928e4f
 
 ---
 
@@ -11,9 +11,12 @@ Go API server powering all Ente clients (Photos, Auth, Locker). Handles authenti
 
 ```sh
 server/
-├── cmd/museum/main.go         # Entry point: config, DB, routing, cron jobs (~1,377 lines)
+├── cmd/museum/main.go         # Entry point: config, DB, routing, cron jobs (~1,406 lines)
 ├── ente/                      # Domain models & entities (pure data, no I/O)
-│   ├── user.go, file.go, collection.go, billing.go, errors.go, ...
+│   ├── user.go, file.go, collection.go, billing.go, errors.go, app.go, ...
+│   ├── legacy_kit.go          # Legacy crypto kit recovery models
+│   ├── passkeyCredential.go, webauthnSession.go  # WebAuthn data structures
+│   ├── anonymous_identity.go, access.go, kex.go, file_link.go, memory_share_expiry.go
 │   ├── jwt/                   # JWT claim types (PAYMENT, FAMILIES, ACCOUNTS)
 │   ├── cache/                 # User cache structures
 │   ├── cast/                  # Chromecast models
@@ -26,6 +29,10 @@ server/
 │   └── base/                  # Request ID generation, base utilities
 ├── pkg/
 │   ├── api/                   # HTTP handlers (request parsing, response writing)
+│   │   ├── legacy_kit.go      # Legacy crypto kit recovery handler
+│   │   ├── public_comments.go # Public-link comments handler
+│   │   ├── diff_utils.go      # Shared diff/pagination helpers
+│   │   └── ...                # + domain handlers (see Core API Domains)
 │   ├── controller/            # Business logic (orchestrates repos + external services)
 │   │   ├── access/            # Access control logic
 │   │   ├── commonbilling/     # Common billing controller
@@ -33,14 +40,21 @@ server/
 │   │   ├── email/             # Email notification controller
 │   │   ├── file_copy/         # File copy operations
 │   │   ├── contact/           # Contact lifecycle, attachment replication/deletion
+│   │   ├── legacy_kit/        # Shamir-style recovery for legacy backup keys
 │   │   ├── lock/              # Distributed lock controller
 │   │   ├── usercache/         # User cache controller
+│   │   ├── file_meta.go       # File metadata operations
+│   │   ├── trash_file_metadata.go # Trash metadata cleanup
+│   │   ├── mailing_lists.go   # Listmonk/Zoho list orchestration
 │   │   └── ...                # + domain-specific dirs/files (see Core API Domains)
 │   ├── repo/                  # Data access (raw SQL queries via database/sql)
-│   │   ├── public/            # Public access repos (collection links, file links, paste)
+│   │   ├── public/            # Public access repos (collection links, file links, paste, device tokens)
 │   │   ├── datacleanup/       # Data cleanup repo
 │   │   ├── contact/           # Contact data access
+│   │   ├── legacy_kit/        # Legacy kit storage
 │   │   ├── two_factor_recovery/ # 2FA recovery repo
+│   │   ├── notificationhistory.go # Deduped notification log
+│   │   ├── collection_files.go, file_size.go  # Specialized file queries
 │   │   └── ...                # + domain-specific dirs/files (see Core API Domains)
 │   ├── middleware/             # Auth, rate limiting, CORS, logging, panic recovery
 │   ├── utils/                 # Shared utilities
@@ -59,7 +73,7 @@ server/
 │       ├── wasabi/            # Wasabi compliance hold management
 │       ├── zoho/              # Zoho Zeptomail email API
 │       └── listmonk/          # Listmonk email marketing API
-├── migrations/                # 120 PostgreSQL migrations, 240 files with up/down (golang-migrate)
+├── migrations/                # 122 PostgreSQL migrations, 244 files with up/down (golang-migrate)
 ├── configurations/            # Environment YAML configs
 │   ├── base.yaml              # Base config (establishes key hierarchy)
 │   ├── local.yaml             # Dev defaults (port 8080, MinIO, stdout logging)
@@ -108,7 +122,7 @@ S3 (3 DCs)       Encrypted file data (B2, Wasabi, Scaleway)
 
 | To find...                    | Look in...                                                 |
 | ----------------------------- | ---------------------------------------------------------- |
-| All HTTP routes               | `cmd/museum/main.go:543-1011` (route registration)         |
+| All HTTP routes               | `cmd/museum/main.go:523-1040` (route registration)         |
 | A specific API handler        | `pkg/api/<domain>.go`                                      |
 | Business logic for a feature  | `pkg/controller/<domain>.go` or `pkg/controller/<domain>/` |
 | Database queries              | `pkg/repo/<domain>.go` or `pkg/repo/<domain>/`             |
@@ -129,7 +143,8 @@ S3 (3 DCs)       Encrypted file data (B2, Wasabi, Scaleway)
 | Email sending                 | `pkg/utils/email/email.go`                                 |
 | Billing plan definitions      | `pkg/utils/billing/`                                       |
 | DB migrations                 | `migrations/{number}_{name}.up.sql`                        |
-| Cron job schedules            | `cmd/museum/main.go:1160-1294`                             |
+| Cron job schedules            | `cmd/museum/main.go:1210-1320`                             |
+| Background workers setup      | `cmd/museum/main.go:1159-1187`                             |
 | Docker dev environment        | `compose.yaml`                                             |
 | Dev config defaults           | `configurations/local.yaml`                                |
 | Email HTML templates          | `mail-templates/`                                          |
@@ -221,7 +236,24 @@ Three payment providers: Stripe (US/India), Apple IAP, Google Play. Unified thro
 
 - **Public collections**: `pkg/api/public_collection.go`, `pkg/controller/public/`
 - **File links**: `pkg/api/file_link.go`, `pkg/controller/public/file_link.go`
-- **Memory shares**: `pkg/api/memory_share.go`, `pkg/controller/memory_share/`
+- **Memory shares**: `pkg/api/memory_share.go`, `pkg/api/public_memory_share.go`, `pkg/controller/memory_share/`
+- **Public comments**: `pkg/api/public_comments.go` paired with `pkg/controller/public/CommentsController`
+- **Browser device tokens**: `pkg/controller/public/link_device_token.go` issues a per-device JWT (`LinkDeviceClaim`) that public collection / file / memory endpoints require alongside `X-Auth-Access-Token`. Free users are capped via the `device_limit` columns on the public-token tables (default 5). Validated in `pkg/middleware/collection_link.go`, `file_link.go`, and `memory_share.go`.
+
+### Legacy Kit (Crypto Recovery)
+
+| Layer      | File                          |
+| ---------- | ----------------------------- |
+| Handler    | `pkg/api/legacy_kit.go`       |
+| Controller | `pkg/controller/legacy_kit/`  |
+| Repo       | `pkg/repo/legacy_kit/`        |
+| Models     | `ente/legacy_kit.go`          |
+
+Shamir-style recovery for legacy backup keys. Owners upload encrypted recovery kits; trustees can recover after a configurable notice period. Status machine: `WAITING → READY → RECOVERED`, with `BLOCKED` / `CANCELLED` branches. Stored in the `legacy_kits` table.
+
+Key endpoints:
+- Owner (`privateAPI`): `POST /legacy-kits`, `GET /legacy-kits`, `DELETE /legacy-kits/:id`, `GET /legacy-kits/:id/download-content`, `GET /legacy-kits/:id/recovery-session`, `POST /legacy-kits/update-recovery-notice`, `POST /legacy-kits/block-recovery`
+- Trustee recovery (`publicAPI`): `POST /legacy-kits/recovery/{challenge,open,session,info,init-change-password}`
 
 ### Social (Comments & Reactions)
 
@@ -300,7 +332,7 @@ Prefix `ENTE_`, uppercase, replace `.` and `-` with `_`.
 | Section                         | Purpose                                                           |
 | ------------------------------- | ----------------------------------------------------------------- |
 | `db.*`                          | PostgreSQL connection (host, port, name, user, password, sslmode) |
-| `s3.*`                          | S3 bucket configs per datacenter                                  |
+| `s3.*`                          | S3 bucket configs per datacenter (`b2-eu-cen`, `wasabi-eu-central-2-v3`, `scw-eu-fr-v3`, plus `wasabi-eu-central-2-derived` for derived data; `hot_storage`, `file-data-config`, `attachment-config` subsections route hot data, file-data blobs, and contact attachments to primary/secondary buckets) |
 | `key.encryption`                | Base64 key for encrypting user emails at rest                     |
 | `key.hash`                      | Base64 key for hashing emails (lookups)                           |
 | `jwt.secret`                    | JWT signing secret                                                |
@@ -308,13 +340,13 @@ Prefix `ENTE_`, uppercase, replace `.` and `-` with `_`.
 | `transmail.*`                   | Zoho Zeptomail credentials                                        |
 | `stripe.*`                      | Stripe API keys (per US/India account)                            |
 | `apple.shared-secret`           | Apple IAP validation                                              |
-| `webauthn.*`                    | WebAuthn relying party config                                     |
+| `webauthn.*`                    | WebAuthn relying party config (`rpid`, `rporigins`, plus `legacy-rpid` / `legacy-rporigins` for the ente.io → ente.com RPID migration) |
 | `discord.*`                     | Discord bot for devops alerts                                     |
 | `internal.admins`               | Admin user ID list                                                |
 | `internal.silent`               | Suppress Discord notifications                                    |
 | `internal.disable-registration` | Block new signups                                                 |
 | `internal.hardcoded-ott.*`      | Fixed OTP for testing                                             |
-| `apps.*`                        | External app URLs (public-albums, accounts, cast, family, etc.)   |
+| `apps.*`                        | External app URLs (`public-albums`, `embed-albums`, `public-locker`, `public-paste`, `cast`, `accounts`, `accounts-legacy`, `family`, `public-memories`, `legacy`, `custom-domain`) |
 | `jobs.cron.skip`                | Disable all cron jobs                                             |
 | `replication.*`                 | Multi-DC replication config                                       |
 | `log-file`                      | Log file path (production)                                        |
@@ -326,7 +358,7 @@ Prefix `ENTE_`, uppercase, replace `.` and `-` with `_`.
 
 **Engine:** PostgreSQL 15
 **Driver:** `github.com/lib/pq`
-**Migrations:** `golang-migrate/migrate/v4` — 120 migrations (240 files with up/down) in `migrations/`
+**Migrations:** `golang-migrate/migrate/v4` — 122 migrations (244 files with up/down) in `migrations/`
 **Connection pool:** 6 idle, 45 max open, 30min lifetime, 10min idle timeout
 
 ### Migration pattern
@@ -335,7 +367,7 @@ Prefix `ENTE_`, uppercase, replace `.` and `-` with `_`.
 migrations/1_create_tables.up.sql
 migrations/1_create_tables.down.sql
 ...
-migrations/120_*.up.sql
+migrations/122_*.up.sql
 ```
 
 Migrations run automatically on startup in `setupDatabase()`.
@@ -375,6 +407,9 @@ return tx.Commit()
 | `embeddings`        | ML embedding vectors                         |
 | `contact_entity`    | E2EE contact entries (per-user address book) |
 | `user_attachments`  | Contact attachment blobs (profile pictures)  |
+| `legacy_kits`        | Encrypted recovery kits + Shamir shares for legacy backup keys |
+| `passkey_rp_ids`     | Per-credential RPID tracking for ente.io → ente.com migration |
+| `notification_history` | Deduped email-notification log (storage warnings, etc.)    |
 
 ---
 
@@ -451,6 +486,8 @@ Started in `setupAndStartBackgroundJobs()` (`cmd/museum/main.go:1130`):
 | Zoho Zeptomail                   | `pkg/external/zoho/`                             | `transmail.*`                          |
 | Listmonk (email marketing)       | `pkg/external/listmonk/`                         | `listmonk.*`                           |
 
+`pkg/controller/mailing_lists.go` orchestrates list subscription/unsubscription across the Listmonk and Zoho clients — call into it rather than the external clients directly.
+
 ---
 
 ## Error Handling
@@ -460,20 +497,22 @@ Started in `setupAndStartBackgroundJobs()` (`cmd/museum/main.go:1130`):
 
 | Error                                     | HTTP Status               |
 | ----------------------------------------- | ------------------------- |
-| `ErrNotFound`, `sql.ErrNoRows`            | 404                       |
-| `ErrBadRequest`                           | 400                       |
-| `ErrPermissionDenied`                     | 403                       |
-| `ErrIncorrectOTT`, `ErrInvalidPassword`   | 401                       |
-| `ErrNoActiveSubscription`                 | 402                       |
-| `ErrStorageLimitExceeded`                 | 426                       |
-| `ErrFileTooLarge`, `ErrBatchSizeTooLarge` | 413                       |
-| `ErrVersionMismatch`                      | 409                       |
-| `ErrExpiredOTT`, `ErrUserDeleted`         | 410                       |
-| `ErrTooManyBadRequest`                    | 429                       |
-| `ErrNotImplemented`                       | 501                       |
-| `ente.ApiError` (custom)                  | `ApiError.HttpStatusCode` |
-| Validation errors                         | 400                       |
-| Unknown errors                            | 500                       |
+| `ErrNotFound`, `sql.ErrNoRows`                                                | 404                       |
+| `ErrBadRequest`, `ErrCannotDowngrade`, `ErrCannotSwitchPaymentProvider`       | 400                       |
+| `ErrPermissionDenied`                                                         | 403                       |
+| `ErrIncorrectOTT`, `ErrIncorrectTOTP`, `ErrInvalidPassword`, `ErrAuthenticationRequired` | 401            |
+| `ErrNoActiveSubscription`, `ErrSharingDisabledForFreeAccounts`                | 402                       |
+| `ErrStorageLimitExceeded`                                                     | 426                       |
+| `ErrFileTooLarge`, `ErrBatchSizeTooLarge`                                     | 413                       |
+| `ErrVersionMismatch`, `ErrCanNotInviteUserWithPaidPlan`                       | 409                       |
+| `ErrCanNotInviteUserAlreadyInFamily`                                          | 406                       |
+| `ErrFamilySizeLimitReached`                                                   | 412                       |
+| `ErrExpiredOTT`, `ErrUserDeleted`                                             | 410                       |
+| `ErrTooManyBadRequest`                                                        | 429                       |
+| `ErrNotImplemented`                                                           | 501                       |
+| `ente.ApiError` (custom)                                                      | `ApiError.HttpStatusCode` |
+| Validation errors                                                             | 400                       |
+| Unknown errors                                                                | 500                       |
 
 **Handler pattern:**
 
@@ -564,7 +603,7 @@ go run tools/gen-random-keys/main.go
 
 ## Critical Gotchas
 
-1. **`main.go` is massive** (~1,377 lines) — all DI wiring, route registration, and cron setup live here. Search by handler/controller name to find routes.
+1. **`main.go` is massive** (~1,406 lines) — all DI wiring, route registration, and cron setup live here. Search by handler/controller name to find routes.
 2. **No ORM** — all SQL is hand-written in repo files. Check `migrations/` for schema.
 3. **Emails are encrypted at rest** — stored via `pkg/utils/crypto/`, looked up by BLAKE2b hash. The `key.encryption` and `key.hash` config values are critical.
 4. **Three S3 buckets required** — hardcoded names `b2-eu-cen`, `wasabi-eu-central-2-v3`, `scw-eu-fr-v3`. Any S3-compatible provider works; names are arbitrary.
@@ -576,3 +615,5 @@ go run tools/gen-random-keys/main.go
 10. **Rate limiting is multi-level** — global (1000 req/s), per-API (configurable), per-user (authenticated endpoints).
 11. **`museum.yaml`** is gitignored — use it for local overrides without touching tracked config files.
 12. **Multiple Stripe accounts** — US and India regions have separate API keys and webhook secrets.
+13. **Passkey RPID migration in progress** — `webauthn.rpid` (currently `ente.com`) and `webauthn.legacy-rpid` (`ente.io`) coexist. New credentials use the primary RPID; pre-migration credentials carry a per-record RPID in `passkey_rp_ids`. Don't assume all passkeys share one RPID when validating WebAuthn assertions.
+14. **Public links require a browser device token** — Public collection / file / memory endpoints expect a per-device JWT (issued by `pkg/controller/public/link_device_token.go`) in addition to `X-Auth-Access-Token`. Free users are capped at 5 devices per link via the `device_limit` column on the public-token tables. When exercising public-link endpoints locally, mint a device token first.
