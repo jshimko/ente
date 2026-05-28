@@ -490,6 +490,11 @@
       "title": "Coinbase"
     },
     {
+      "title": "CoinMarketCap",
+      "slug": "coinmarketcap",
+      "hex": "000000"
+    },
+    {
       "title": "CoinDCX"
     },
     {
@@ -1370,10 +1375,6 @@
       ]
     },
     {
-      "title": "MozillaOld",
-      "slug": "mozilla_old"
-    },
-    {
       "title": "Mozilla",
       "slug": "mozilla",
       "altNames": [
@@ -2179,6 +2180,11 @@
       "altNames": [
         "Toyhou.se"
       ]
+    },
+    {
+      "title": "Trade Republic",
+      "slug": "trade_republic",
+      "hex": "000000"
     },
     {
       "title": "Trading 212"

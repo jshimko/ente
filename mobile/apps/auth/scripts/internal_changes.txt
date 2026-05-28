@@ -1,10 +1,15 @@
-- Added custom icons for Art Fight, BJ-Share, CatRealm, eClinicalWorks, Racket Coach, RustDesk, Smogon, Zabbix, and Zyxel Nebula
-- Updated the Availity custom icon
-- Fixed several multi-color custom icons rendering as single-color masks
+- Upgraded Auth to Flutter 3.38.10 and Android target SDK 36
+- Worked around Android search autofocus not reliably opening the keyboard on app start
+- Made overflowing Auth tag strips scrollable with desktop mouse wheel and drag interactions
+- Made Auth tag chips reachable by keyboard Tab and selectable with Enter or Space
+- Fixed saved theme selection being reset after unlocking Auth and improved password manager autofill detection for password fields
+- Focus newly added Auth codes so stale search or tag filters do not hide successful additions
+- Added custom icons for 1984 Hosting, Art Fight, BJ-Share, CatRealm, Cove Backup, eClinicalWorks, HaloPSA, JumpCloud, Patchmon, Racket Coach, RustDesk, Sherweb, Smogon, Sony, Zabbix, and Zyxel Nebula
+- Updated the Availity custom icon and fixed several multi-color custom icons rendering as single-color masks
 - Preserved maximized window state across desktop app launches
 - Hid the share-code option for HOTP entries, keeping sharing limited to TOTP-compatible codes
-- Migrated Auth app API, sharing, billing, web access, and exported HTML asset links to ente.com domains
-- Added Android and iOS web credential associations for ente.com Ente properties to improve password autofill/passkey handoff
+- Migrated Auth app API, sharing, billing, web access, exported HTML asset links, and credential associations to ente.com domains
 - Reduced direct-distribution Android APK size by filtering supported ABIs and compressing native libraries
+- Signed Windows payload binaries and fixed macOS keychain/signing setup for desktop releases
 - Cleaned up temporary files created while importing Auth exports from other apps
 - Updated Estonian and Lithuanian translations

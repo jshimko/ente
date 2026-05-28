@@ -167,7 +167,7 @@ export const CollectionSelector: React.FC<CollectionSelectorProps> = ({
                     return canAddToCollection(cs) && cs.type != "userFavorites";
                 } else if (attributes.action == "upload") {
                     return (
-                        (canMoveToCollection(cs) ||
+                        (canAddToCollection(cs) ||
                             cs.type == "uncategorized") &&
                         cs.type != "userFavorites"
                     );

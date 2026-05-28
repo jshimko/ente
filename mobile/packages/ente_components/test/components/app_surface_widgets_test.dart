@@ -5,6 +5,7 @@ import 'package:ente_components/components/menu_component.dart';
 import 'package:ente_components/components/menu_group_component.dart';
 import 'package:ente_components/theme/colors.dart';
 import 'package:ente_components/theme/icon_sizes.dart';
+import 'package:ente_components/theme/text_styles.dart';
 import 'package:ente_components/theme/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -67,7 +68,7 @@ void main() {
     final decoration = surface.decoration! as BoxDecoration;
     expect(decoration.border, isNotNull);
     expect(tester.widget<Text>(find.text('Camera uploads')).maxLines, 2);
-    expect(tester.widget<Text>(find.text('Enabled on Wi-Fi')).maxLines, 1);
+    expect(tester.widget<Text>(find.text('Enabled on Wi-Fi')).maxLines, 2);
     expect(
       tester.widget<Text>(find.text('Camera uploads')).style?.color,
       ColorTokens.light.warning,
@@ -421,6 +422,28 @@ void main() {
     await tester.pump(const Duration(milliseconds: 200));
   });
 
+  testWidgets('MenuComponent allows two subtitle lines for one-line titles', (
+    tester,
+  ) async {
+    const subtitle =
+        'This subtitle can use two lines when the title fits on one line';
+
+    await pumpComponent(
+      tester,
+      const MenuComponent(
+        title: 'Camera uploads',
+        subtitle: subtitle,
+        leading: Icon(Icons.image_outlined),
+        trailing: Icon(Icons.chevron_right),
+      ),
+      width: 320,
+    );
+
+    expect(tester.widget<Text>(find.text('Camera uploads')).maxLines, 2);
+    expect(tester.widget<Text>(find.text(subtitle)).maxLines, 2);
+    expect(tester.getSize(find.byType(MenuComponent)).height, greaterThan(60));
+  });
+
   testWidgets('MenuComponent long text uses two title lines and one subtitle line', (
     tester,
   ) async {
@@ -511,9 +534,9 @@ void main() {
     );
     expect(
       tester.getCenter(find.byKey(const ValueKey('header-leading'))).dy,
-      closeTo(71, 1),
+      closeTo(73, 1),
     );
-    expect(tester.getCenter(find.byIcon(Icons.add)).dy, closeTo(67, 1));
+    expect(tester.getCenter(find.byIcon(Icons.add)).dy, closeTo(73, 1));
 
     await tester.tap(find.byKey(const ValueKey('header-leading')));
     await tester.pump();
@@ -577,17 +600,19 @@ void main() {
         height: 600,
       );
 
-      scrollController.jumpTo(54);
+      scrollController.jumpTo(48);
       await tester.pump();
 
       final title = tester.widget<Text>(find.text('Menu items'));
-      expect(title.style?.fontSize, greaterThan(18));
+      expect(title.style?.fontSize, greaterThan(16));
+      expect(title.style?.fontFamily, TextStyles.outfitFontFamily);
 
-      scrollController.jumpTo(60);
+      scrollController.jumpTo(58);
       await tester.pump();
 
       final collapsedTitle = tester.widget<Text>(find.text('Menu items'));
-      expect(collapsedTitle.style?.fontSize, closeTo(18, 0.01));
+      expect(collapsedTitle.style?.fontSize, closeTo(20, 0.01));
+      expect(collapsedTitle.style?.fontFamily, TextStyles.outfitFontFamily);
       expect(tester.getTopLeft(find.text('Item 0')).dy, closeTo(56, 1));
     },
   );
@@ -618,18 +643,60 @@ void main() {
     await tester.drag(find.byType(CustomScrollView), const Offset(0, -40));
     await tester.pumpAndSettle();
 
-    expect(scrollController.offset, closeTo(60, 1));
+    expect(scrollController.offset, closeTo(58, 1));
     final collapsedTitle = tester.widget<Text>(find.text('Appearance'));
-    expect(collapsedTitle.style?.fontSize, closeTo(18, 0.01));
+    expect(collapsedTitle.style?.fontSize, closeTo(20, 0.01));
+    expect(collapsedTitle.style?.fontFamily, TextStyles.outfitFontFamily);
     expect(tester.getTopLeft(find.text('System theme')).dy, closeTo(56, 1));
 
     await tester.drag(find.byType(CustomScrollView), const Offset(0, 32));
     await tester.pumpAndSettle();
-    expect(scrollController.offset, closeTo(60, 1));
+    expect(scrollController.offset, closeTo(58, 1));
 
     await tester.drag(find.byType(CustomScrollView), const Offset(0, 120));
     await tester.pumpAndSettle();
     expect(scrollController.offset, closeTo(0, 1));
+  });
+
+  testWidgets('AppBarComponent updates header colors when theme changes', (
+    tester,
+  ) async {
+    Widget buildWithTheme(ThemeMode themeMode) {
+      return MaterialApp(
+        theme: ComponentTheme.lightTheme(),
+        darkTheme: ComponentTheme.darkTheme(),
+        themeMode: themeMode,
+        home: const MediaQuery(
+          data: MediaQueryData(),
+          child: Scaffold(
+            body: AppBarComponent(
+              title: 'Appearance',
+              slivers: [
+                SliverToBoxAdapter(
+                  child: SizedBox(height: 80, child: Text('Theme')),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    Color headerColor() {
+      final headerBackground = find.descendant(
+        of: find.byType(SliverPersistentHeader),
+        matching: find.byType(ColoredBox),
+      );
+      return tester.widget<ColoredBox>(headerBackground.first).color;
+    }
+
+    await tester.pumpWidget(buildWithTheme(ThemeMode.light));
+    await tester.pump();
+    expect(headerColor(), ColorTokens.light.backgroundBase);
+
+    await tester.pumpWidget(buildWithTheme(ThemeMode.dark));
+    await tester.pumpAndSettle();
+    expect(headerColor(), ColorTokens.dark.backgroundBase);
   });
 
   testWidgets('SliverAppBarComponent adapts vertical space for large text', (
@@ -662,7 +729,7 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(find.text(title), findsOneWidget);
-    expect(tester.getBottomLeft(find.text(title)).dy, lessThanOrEqualTo(118));
+    expect(tester.getBottomLeft(find.text(title)).dy, lessThanOrEqualTo(128));
 
     await tester.drag(find.byType(CustomScrollView), const Offset(0, -240));
     await tester.pump();

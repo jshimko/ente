@@ -21,13 +21,17 @@ const Page = () => {
         creating,
         createError,
         createdLink,
+        createdLinkPasswordProtected,
         createSecureLink,
     } = useCreatePaste();
 
-    const { consuming, consumeError, resolvedText } = useConsumePaste(
-        mode,
-        accessToken,
-    );
+    const {
+        consuming,
+        consumeError,
+        resolvedText,
+        passwordRequired,
+        submitPassword,
+    } = useConsumePaste(mode, accessToken);
 
     return (
         <>
@@ -43,16 +47,6 @@ const Page = () => {
                 <meta
                     name="twitter:image"
                     content="https://paste.ente.com/images/metaimage.png"
-                />
-                <link rel="preconnect" href="https://fonts.googleapis.com" />
-                <link
-                    rel="preconnect"
-                    href="https://fonts.gstatic.com"
-                    crossOrigin="anonymous"
-                />
-                <link
-                    href="https://fonts.googleapis.com/css2?family=Gochi+Hand&display=swap"
-                    rel="stylesheet"
                 />
             </Head>
 
@@ -72,6 +66,9 @@ const Page = () => {
                             creating={creating}
                             createError={createError}
                             createdLink={createdLink}
+                            createdLinkPasswordProtected={
+                                createdLinkPasswordProtected
+                            }
                             onInputChange={setInputText}
                             onCreate={createSecureLink}
                             onCopyLink={copyTextToClipboard}
@@ -84,6 +81,8 @@ const Page = () => {
                             consuming={consuming}
                             consumeError={consumeError}
                             resolvedText={resolvedText}
+                            passwordRequired={passwordRequired}
+                            onSubmitPassword={submitPassword}
                             onCopyText={copyTextToClipboard}
                         />
                     )}

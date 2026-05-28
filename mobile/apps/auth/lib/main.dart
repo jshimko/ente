@@ -45,30 +45,29 @@ final _logger = Logger("main");
 
 Future<void> initSystemTray() async {
   if (PlatformDetector.isMobile()) return;
-  String path = Platform.isWindows
-      ? 'assets/icons/auth-icon-monochrome.ico'
+  final String path = Platform.isWindows
+      ? 'assets/icons/auth-icon.ico'
       : Platform.isMacOS
-          ? 'assets/icons/auth-icon-monochrome-padded.png'
-          : 'assets/icons/auth-icon-monochrome.png';
+      ? 'assets/icons/auth-icon-monochrome-padded.png'
+      : _linuxTrayIconPath();
   await trayManager.setIcon(path, isTemplate: true);
   Menu menu = Menu(
     items: [
-      MenuItem(
-        key: 'hide_window',
-        label: 'Hide Window',
-      ),
-      MenuItem(
-        key: 'show_window',
-        label: 'Show Window',
-      ),
+      MenuItem(key: 'hide_window', label: 'Hide Window'),
+      MenuItem(key: 'show_window', label: 'Show Window'),
       MenuItem.separator(),
-      MenuItem(
-        key: 'exit_app',
-        label: 'Exit App',
-      ),
+      MenuItem(key: 'exit_app', label: 'Exit App'),
     ],
   );
   await trayManager.setContextMenu(menu);
+}
+
+String _linuxTrayIconPath() {
+  if (Platform.environment.containsKey('FLATPAK_ID') ||
+      Platform.environment.containsKey('SNAP')) {
+    return 'io.ente.auth';
+  }
+  return 'assets/icons/auth-icon-monochrome.png';
 }
 
 void main() async {
@@ -103,7 +102,9 @@ void main() async {
 
 Future<void> _runInForeground() async {
   AppThemeConfig.initialize(EnteApp.auth);
-  final savedThemeMode = _themeMode(await AdaptiveTheme.getThemeMode());
+  final adaptiveThemeMode =
+      await AdaptiveTheme.getThemeMode() ?? AdaptiveThemeMode.system;
+  final savedThemeMode = _themeMode(adaptiveThemeMode);
   final configuration = Configuration.instance;
   return await _runWithLogs(() async {
     _logger.info("Starting app in foreground");
@@ -117,7 +118,8 @@ Future<void> _runInForeground() async {
     unawaited(UpdateService.instance.showUpdateNotification());
     runApp(
       AppLock(
-        builder: (args) => App(locale: locale),
+        builder: (args) =>
+            App(locale: locale, savedThemeMode: adaptiveThemeMode),
         lockScreen: LockScreen(configuration),
         enabled: await LockScreenSettings.instance.shouldShowLockScreen(),
         locale: locale,
@@ -164,8 +166,11 @@ void _registerWindowsProtocol() {
   const kWindowsScheme = 'enteauth';
   // Register our protocol only on Windows platform
   if (!kIsWeb && Platform.isWindows) {
-    WindowsProtocolHandler()
-        .register(kWindowsScheme, executable: null, arguments: null);
+    WindowsProtocolHandler().register(
+      kWindowsScheme,
+      executable: null,
+      arguments: null,
+    );
   }
 }
 

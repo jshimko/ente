@@ -1,17 +1,16 @@
 name: "Lint (staff)"
 
 on:
-    # Run on every pull request (open or push to it) that changes infra/staff/
     pull_request:
         paths:
+            - ".github/workflows/infra-lint-staff.yml"
             - "infra/staff/**"
-            - ".github/workflows/infra-deploy-staff.yml"
 
 permissions:
     contents: read
 
 jobs:
-    deploy:
+    lint:
         runs-on: ubuntu-latest
 
         defaults:
@@ -22,15 +21,15 @@ jobs:
             - name: Checkout code
               uses: actions/checkout@v6
 
-            - name: Setup node and enable yarn caching
+            - name: Setup node and enable npm caching
               uses: actions/setup-node@v6
               with:
                   node-version: 24
-                  cache: "yarn"
-                  cache-dependency-path: "infra/staff/yarn.lock"
+                  cache: "npm"
+                  cache-dependency-path: "infra/staff/package-lock.json"
 
             - name: Install dependencies
-              run: yarn install
+              run: npm ci
 
             - name: Lint
-              run: yarn lint
+              run: npm run lint

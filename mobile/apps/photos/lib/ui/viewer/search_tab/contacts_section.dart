@@ -1,6 +1,7 @@
 import "dart:async";
 
 import "package:dotted_border/dotted_border.dart";
+import "package:ente_components/theme/text_styles.dart";
 import "package:ente_pure_utils/ente_pure_utils.dart";
 import "package:flutter/material.dart";
 import "package:photos/core/constants.dart";
@@ -10,11 +11,62 @@ import "package:photos/models/search/generic_search_result.dart";
 import "package:photos/models/search/recent_searches.dart";
 import "package:photos/models/search/search_constants.dart";
 import "package:photos/models/search/search_types.dart";
+import "package:photos/service_locator.dart" show isLocalGalleryMode;
+import "package:photos/services/search_service.dart";
 import "package:photos/theme/ente_theme.dart";
+import "package:photos/ui/common/loading_widget.dart";
 import "package:photos/ui/viewer/search/contact_avatar_widget.dart";
 import "package:photos/ui/viewer/search/result/contact_result_page.dart";
 import "package:photos/ui/viewer/search/search_section_cta.dart";
 import "package:photos/ui/viewer/search_tab/section_header.dart";
+
+class ContactsSectionLoader extends StatefulWidget {
+  const ContactsSectionLoader({super.key});
+
+  @override
+  State<ContactsSectionLoader> createState() => _ContactsSectionLoaderState();
+}
+
+class _ContactsSectionLoaderState extends State<ContactsSectionLoader> {
+  Future<List<GenericSearchResult>>? _contactsFuture;
+
+  @override
+  Widget build(BuildContext context) {
+    if (isLocalGalleryMode) {
+      return const SizedBox.shrink();
+    }
+    _contactsFuture ??= SearchService.instance.getAllContactsSearchResults(
+      kSearchSectionLimit,
+    );
+    return FutureBuilder<List<GenericSearchResult>>(
+      future: _contactsFuture!,
+      builder: (context, snapshot) {
+        if (snapshot.hasData) {
+          return ContactsSection(snapshot.data!);
+        }
+        return const ContactsLoadingSection();
+      },
+    );
+  }
+}
+
+class ContactsLoadingSection extends StatelessWidget {
+  const ContactsLoadingSection({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const Padding(
+      padding: EdgeInsets.symmetric(vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SectionHeader(SectionType.contacts, hasMore: false),
+          SizedBox(height: 80, child: EnteLoadingWidget()),
+        ],
+      ),
+    );
+  }
+}
 
 class ContactsSection extends StatefulWidget {
   final List<GenericSearchResult> contactSearchResults;
@@ -27,9 +79,7 @@ class ContactsSection extends StatefulWidget {
 class _ContactsSectionState extends State<ContactsSection> {
   late List<GenericSearchResult> _contactSearchResults;
   final streamSubscriptions = <StreamSubscription>[];
-  final _debouncer = Debouncer(
-    const Duration(milliseconds: 1500),
-  );
+  final _debouncer = Debouncer(const Duration(milliseconds: 1500));
 
   @override
   void initState() {
@@ -41,10 +91,12 @@ class _ContactsSectionState extends State<ContactsSection> {
       streamSubscriptions.add(
         stream.listen((event) async {
           _debouncer.run(() async {
-            _contactSearchResults = (await SectionType.contacts.getData(
-              context,
-              limit: kSearchSectionLimit,
-            )) as List<GenericSearchResult>;
+            _contactSearchResults =
+                (await SectionType.contacts.getData(
+                      context,
+                      limit: kSearchSectionLimit,
+                    ))
+                    as List<GenericSearchResult>;
             setState(() {});
           });
         }),
@@ -81,7 +133,9 @@ class _ContactsSectionState extends State<ContactsSection> {
                 children: [
                   Text(
                     SectionType.contacts.sectionTitle(context),
-                    style: textTheme.largeBold,
+                    style: TextStyles.h2.copyWith(
+                      color: textTheme.largeBold.color,
+                    ),
                   ),
                   const SizedBox(height: 24),
                   Padding(
@@ -104,9 +158,7 @@ class _ContactsSectionState extends State<ContactsSection> {
         ..._contactSearchResults.map(
           (contactSearchResult) => ContactRecommendation(
             contactSearchResult,
-            key: ValueKey(
-              contactSearchResult.name(),
-            ),
+            key: ValueKey(contactSearchResult.name()),
           ),
         ),
         const ContactCTA(),
@@ -166,10 +218,7 @@ class _ContactRecommendationState extends State<ContactRecommendation> {
           if (widget.contactSearchResult.onResultTap != null) {
             widget.contactSearchResult.onResultTap!(context);
           } else {
-            routeToPage(
-              context,
-              ContactResultPage(widget.contactSearchResult),
-            );
+            routeToPage(context, ContactResultPage(widget.contactSearchResult));
           }
         },
         child: ConstrainedBox(
@@ -180,8 +229,10 @@ class _ContactRecommendationState extends State<ContactRecommendation> {
             minWidth: 100,
           ),
           child: Padding(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 4.25, vertical: 10.5),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 4.25,
+              vertical: 10.5,
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
@@ -241,8 +292,10 @@ class ContactCTA extends StatelessWidget {
             minWidth: 100,
           ),
           child: Padding(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 4.25, vertical: 10.5),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 4.25,
+              vertical: 10.5,
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [

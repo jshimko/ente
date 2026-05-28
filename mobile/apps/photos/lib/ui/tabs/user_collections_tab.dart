@@ -48,10 +48,10 @@ class _UserCollectionsTabState extends State<UserCollectionsTab>
   final _logger = Logger((_UserCollectionsTabState).toString());
   late StreamSubscription<LocalPhotosUpdatedEvent> _localFilesSubscription;
   late StreamSubscription<CollectionUpdatedEvent>
-      _collectionUpdatesSubscription;
+  _collectionUpdatesSubscription;
   late StreamSubscription<UserLoggedOutEvent> _loggedOutEvent;
   late StreamSubscription<FavoritesServiceInitCompleteEvent>
-      _favoritesServiceInitCompleteEvent;
+  _favoritesServiceInitCompleteEvent;
   late StreamSubscription<AlbumSortOrderChangeEvent> _albumSortOrderChangeEvent;
   late StreamSubscription<BackupFoldersUpdatedEvent> _backupFoldersUpdatedEvent;
   late StreamSubscription<AppModeChangedEvent> _appModeChangedEvent;
@@ -64,7 +64,6 @@ class _UserCollectionsTabState extends State<UserCollectionsTab>
     leading: true,
   );
 
-  static const int _kOnEnteItemLimitCount = 12;
   @override
   void initState() {
     super.initState();
@@ -78,36 +77,40 @@ class _UserCollectionsTabState extends State<UserCollectionsTab>
         });
       },
     );
-    _collectionUpdatesSubscription =
-        Bus.instance.on<CollectionUpdatedEvent>().listen((event) {
-      _debouncer.run(() async {
-        if (mounted) {
-          _loadReason = event.reason;
-          setState(() {});
-        }
-      });
-    });
+    _collectionUpdatesSubscription = Bus.instance
+        .on<CollectionUpdatedEvent>()
+        .listen((event) {
+          _debouncer.run(() async {
+            if (mounted) {
+              _loadReason = event.reason;
+              setState(() {});
+            }
+          });
+        });
     _loggedOutEvent = Bus.instance.on<UserLoggedOutEvent>().listen((event) {
       _loadReason = event.reason;
       setState(() {});
     });
-    _favoritesServiceInitCompleteEvent =
-        Bus.instance.on<FavoritesServiceInitCompleteEvent>().listen((event) {
-      _debouncer.run(() async {
-        _loadReason = event.reason;
-        setState(() {});
-      });
-    });
-    _albumSortOrderChangeEvent =
-        Bus.instance.on<AlbumSortOrderChangeEvent>().listen((event) {
-      _loadReason = event.reason;
-      setState(() {});
-    });
-    _backupFoldersUpdatedEvent =
-        Bus.instance.on<BackupFoldersUpdatedEvent>().listen((event) {
-      _loadReason = event.reason;
-      if (mounted) setState(() {});
-    });
+    _favoritesServiceInitCompleteEvent = Bus.instance
+        .on<FavoritesServiceInitCompleteEvent>()
+        .listen((event) {
+          _debouncer.run(() async {
+            _loadReason = event.reason;
+            setState(() {});
+          });
+        });
+    _albumSortOrderChangeEvent = Bus.instance
+        .on<AlbumSortOrderChangeEvent>()
+        .listen((event) {
+          _loadReason = event.reason;
+          setState(() {});
+        });
+    _backupFoldersUpdatedEvent = Bus.instance
+        .on<BackupFoldersUpdatedEvent>()
+        .listen((event) {
+          _loadReason = event.reason;
+          if (mounted) setState(() {});
+        });
     _appModeChangedEvent = Bus.instance.on<AppModeChangedEvent>().listen((_) {
       _loadReason = "AppModeChangedEvent";
       if (mounted) {
@@ -120,17 +123,17 @@ class _UserCollectionsTabState extends State<UserCollectionsTab>
   Widget build(BuildContext context) {
     super.build(context);
     _logger.info("Building, trigger: $_loadReason");
-    final bool localGalleryUiMode =
+    final bool localGalleryMode =
         isLocalGalleryMode && !Configuration.instance.hasConfiguredAccount();
     return FutureBuilder<List<Collection>>(
-      future: localGalleryUiMode
+      future: localGalleryMode
           ? Future.value(<Collection>[])
           : CollectionsService.instance.getCollectionForOnEnteSection(),
       builder: (context, snapshot) {
         if (snapshot.hasData) {
           return _getCollectionsGalleryWidget(
             snapshot.data!,
-            localGalleryUiMode: localGalleryUiMode,
+            localGalleryMode: localGalleryMode,
           );
         } else if (snapshot.hasError) {
           return Text(snapshot.error.toString());
@@ -143,14 +146,16 @@ class _UserCollectionsTabState extends State<UserCollectionsTab>
 
   Widget _getCollectionsGalleryWidget(
     List<Collection> collections, {
-    required bool localGalleryUiMode,
+    required bool localGalleryMode,
   }) {
-    final TextStyle trashAndHiddenTextStyle =
-        Theme.of(context).textTheme.titleMedium!.copyWith(
-              color: Theme.of(
-                context,
-              ).textTheme.titleMedium!.color!.withValues(alpha: 0.5),
-            );
+    final TextStyle trashAndHiddenTextStyle = Theme.of(context)
+        .textTheme
+        .titleMedium!
+        .copyWith(
+          color: Theme.of(
+            context,
+          ).textTheme.titleMedium!.color!.withValues(alpha: 0.5),
+        );
     final colorScheme = getEnteColorScheme(context);
 
     return Stack(
@@ -185,44 +190,44 @@ class _UserCollectionsTabState extends State<UserCollectionsTab>
                 ),
                 trailingWidget:
                     backupPreferenceService.hasSkippedOnboardingPermission
-                        ? null
-                        : Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              IconButtonWidget(
-                                icon: Icons.search,
-                                iconButtonType: IconButtonType.secondary,
-                                iconColor: colorScheme.blurStrokePressed,
-                                onTap: () {
-                                  unawaited(
-                                    routeToPage(
-                                      context,
-                                      DeviceFolderVerticalGridView(
-                                        appTitle: SectionTitle(
-                                          title: AppLocalizations.of(
-                                            context,
-                                          ).onDevice,
-                                        ),
-                                        tag: "OnDeviceAppTitle",
-                                        startInSearchMode: true,
-                                      ),
+                    ? null
+                    : Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButtonWidget(
+                            icon: Icons.search,
+                            iconButtonType: IconButtonType.secondary,
+                            iconColor: colorScheme.blurStrokePressed,
+                            onTap: () {
+                              unawaited(
+                                routeToPage(
+                                  context,
+                                  DeviceFolderVerticalGridView(
+                                    appTitle: SectionTitle(
+                                      title: AppLocalizations.of(
+                                        context,
+                                      ).onDevice,
                                     ),
-                                  );
-                                },
-                              ),
-                              IconButtonWidget(
-                                icon: Icons.chevron_right,
-                                iconButtonType: IconButtonType.secondary,
-                                iconColor: colorScheme.blurStrokePressed,
-                              ),
-                            ],
+                                    tag: "OnDeviceAppTitle",
+                                    startInSearchMode: true,
+                                  ),
+                                ),
+                              );
+                            },
                           ),
+                          IconButtonWidget(
+                            icon: Icons.chevron_right,
+                            iconButtonType: IconButtonType.secondary,
+                            iconColor: colorScheme.blurStrokePressed,
+                          ),
+                        ],
+                      ),
               ),
             ),
             const SliverToBoxAdapter(child: DeviceFoldersGridView()),
             SliverToBoxAdapter(
               child: SectionOptions(
-                onTap: localGalleryUiMode
+                onTap: localGalleryMode
                     ? null
                     : () {
                         unawaited(
@@ -239,7 +244,7 @@ class _UserCollectionsTabState extends State<UserCollectionsTab>
                         );
                       },
                 SectionTitle(titleWithBrand: getOnEnteSection(context)),
-                trailingWidget: localGalleryUiMode
+                trailingWidget: localGalleryMode
                     ? null
                     : Row(
                         mainAxisSize: MainAxisSize.min,
@@ -273,20 +278,19 @@ class _UserCollectionsTabState extends State<UserCollectionsTab>
                       ),
               ),
             ),
-            SliverToBoxAdapter(child: DeleteEmptyAlbums(collections)),
-            localGalleryUiMode
+            const SliverToBoxAdapter(child: DeleteEmptyAlbums()),
+            localGalleryMode
                 ? const SliverToBoxAdapter(child: EmptyOnEnteSection())
                 : Configuration.instance.hasConfiguredAccount()
-                    ? CollectionsFlexiGridViewWidget(
-                        collections,
-                        displayLimitCount: _kOnEnteItemLimitCount,
-                        selectedAlbums: widget.selectedAlbums,
-                        shrinkWrap: true,
-                        shouldShowCreateAlbum: true,
-                        enableSelectionMode: true,
-                      )
-                    : const SliverToBoxAdapter(child: EmptyState()),
-            if (!localGalleryUiMode) ...[
+                ? CollectionsFlexiGridViewWidget(
+                    collections,
+                    selectedAlbums: widget.selectedAlbums,
+                    shrinkWrap: true,
+                    shouldShowCreateAlbum: true,
+                    enableSelectionMode: true,
+                  )
+                : const SliverToBoxAdapter(child: EmptyState()),
+            if (!localGalleryMode) ...[
               SliverToBoxAdapter(
                 child: Divider(color: colorScheme.strokeFaint),
               ),

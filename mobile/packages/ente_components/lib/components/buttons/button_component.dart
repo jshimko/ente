@@ -36,8 +36,10 @@ class ButtonComponent extends StatefulWidget {
     this.size = ButtonComponentSize.large,
     this.isDisabled = false,
     this.shouldSurfaceExecutionStates = true,
+    this.shouldShowSuccessState = true,
     this.shouldShowSuccessConfirmation = false,
     this.progressStatus,
+    this.leading,
   });
 
   final String label;
@@ -46,8 +48,10 @@ class ButtonComponent extends StatefulWidget {
   final ButtonComponentSize size;
   final bool isDisabled;
   final bool shouldSurfaceExecutionStates;
+  final bool shouldShowSuccessState;
   final bool shouldShowSuccessConfirmation;
   final ValueListenable<String>? progressStatus;
+  final Widget? leading;
 
   @override
   State<ButtonComponent> createState() => _ButtonComponentState();
@@ -247,6 +251,13 @@ class _ButtonComponentState extends State<ButtonComponent>
           : MainAxisSize.min,
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
+        if (widget.leading != null) ...[
+          IconTheme.merge(
+            data: IconThemeData(color: foreground, size: IconSizes.small),
+            child: widget.leading!,
+          ),
+          const SizedBox(width: Spacing.sm),
+        ],
         if (widget.variant != ButtonComponentVariant.link)
           Flexible(child: label)
         else
@@ -329,7 +340,7 @@ class _ButtonComponentState extends State<ButtonComponent>
     if (widget.isDisabled || widget.onTap == null) {
       return _ResolvedButtonColors(
         background: _disabledBackground(context),
-        foreground: _componentColors(context).textLighter,
+        foreground: _componentColors(context).textLightest,
       );
     }
 
@@ -378,7 +389,10 @@ class _ButtonComponentState extends State<ButtonComponent>
   bool get _showLoading =>
       widget.shouldSurfaceExecutionStates && _isExecuting && _loadingVisible;
 
-  bool get _showSuccess => widget.shouldSurfaceExecutionStates && _isSuccessful;
+  bool get _showSuccess =>
+      widget.shouldSurfaceExecutionStates &&
+      widget.shouldShowSuccessState &&
+      _isSuccessful;
 
   Future<void> _handleTap() async {
     final callback = widget.onTap;
@@ -411,6 +425,7 @@ class _ButtonComponentState extends State<ButtonComponent>
 
       final shouldShowSuccess =
           widget.shouldSurfaceExecutionStates &&
+          widget.shouldShowSuccessState &&
           (loadingSurfaced ||
               (loadingPending && widget.shouldShowSuccessConfirmation));
 
@@ -460,7 +475,7 @@ class _ButtonComponentState extends State<ButtonComponent>
     final colors = _componentColors(context);
     return switch (widget.variant) {
       ButtonComponentVariant.primary => colors.primary,
-      ButtonComponentVariant.secondary => colors.primaryLight,
+      ButtonComponentVariant.secondary => colors.fillDark,
       ButtonComponentVariant.neutral => colors.fillBase,
       ButtonComponentVariant.critical => colors.warning,
       ButtonComponentVariant.tertiaryCritical => Colors.transparent,
@@ -472,7 +487,7 @@ class _ButtonComponentState extends State<ButtonComponent>
     final colors = _componentColors(context);
     return switch (widget.variant) {
       ButtonComponentVariant.primary => colors.primaryDark,
-      ButtonComponentVariant.secondary => colors.primaryLightHover,
+      ButtonComponentVariant.secondary => colors.fillDarker,
       ButtonComponentVariant.neutral => colors.fillBase,
       ButtonComponentVariant.critical => colors.warningDark,
       ButtonComponentVariant.tertiaryCritical => Colors.transparent,
@@ -484,7 +499,7 @@ class _ButtonComponentState extends State<ButtonComponent>
     final colors = _componentColors(context);
     return switch (widget.variant) {
       ButtonComponentVariant.primary => colors.primaryDarker,
-      ButtonComponentVariant.secondary => colors.primaryLightPressed,
+      ButtonComponentVariant.secondary => colors.fillDarkest,
       ButtonComponentVariant.neutral => colors.fillBase,
       ButtonComponentVariant.critical => colors.warningDarker,
       ButtonComponentVariant.tertiaryCritical => Colors.transparent,
@@ -509,10 +524,7 @@ class _ButtonComponentState extends State<ButtonComponent>
     final colors = _componentColors(context);
     return switch (widget.variant) {
       ButtonComponentVariant.primary => colors.specialWhite,
-      ButtonComponentVariant.secondary => _secondaryForeground(
-        colors,
-        isPressed: isPressed,
-      ),
+      ButtonComponentVariant.secondary => colors.textBase,
       ButtonComponentVariant.neutral => colors.textReverse,
       ButtonComponentVariant.critical => colors.specialWhite,
       ButtonComponentVariant.tertiaryCritical =>
@@ -528,13 +540,6 @@ class _ButtonComponentState extends State<ButtonComponent>
             ? colors.primaryDark
             : colors.primary,
     };
-  }
-
-  Color _secondaryForeground(ColorTokens colors, {required bool isPressed}) {
-    if (colors.primary == colors.blue || colors.primary == colors.purple) {
-      return colors.primary;
-    }
-    return isPressed ? colors.primaryDarker : colors.primaryDark;
   }
 
   ColorTokens _componentColors(BuildContext context) {

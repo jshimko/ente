@@ -29,6 +29,7 @@ COPY web/apps/albums/package.json web/apps/albums/package.json
 COPY web/apps/auth/package.json web/apps/auth/package.json
 COPY web/apps/cast/package.json web/apps/cast/package.json
 COPY web/apps/embed/package.json web/apps/embed/package.json
+COPY web/apps/locker/package.json web/apps/locker/package.json
 COPY web/apps/memories/package.json web/apps/memories/package.json
 COPY web/apps/share/package.json web/apps/share/package.json
 COPY web/apps/paste/package.json web/apps/paste/package.json
@@ -53,8 +54,10 @@ RUN --mount=type=cache,id=yarn,target=/opt/yarn \
     cd web && yarn install --frozen-lockfile
 
 # build and cache wasm first
-COPY rust/core/ ./rust/core
-COPY rust/contacts/ ./rust/contacts
+COPY rust/Cargo.toml rust/Cargo.lock ./rust/
+COPY rust/crates/core/ ./rust/crates/core/
+COPY rust/crates/contacts/ ./rust/crates/contacts/
+COPY rust/bindings/wasm/ente-wasm/ ./rust/bindings/wasm/ente-wasm/
 COPY web/packages/build-config/ ./web/packages/build-config
 COPY web/packages/contacts/ ./web/packages/contacts
 COPY web/packages/wasm/ ./web/packages/wasm
@@ -80,8 +83,8 @@ RUN --mount=type=cache,id=turbo,target=.turbo \
     --mount=type=cache,id=wasm-pack,target=/root/.cache/.wasm-pack \
     yarn turbo build build:post \
     --filter=accounts --filter=albums --filter=auth --filter=cast \
-    --filter=embed --filter=memories --filter=paste --filter=photos \
-    --filter=share
+    --filter=embed --filter=locker --filter=memories --filter=paste \
+    --filter=photos --filter=share
 
 # https://hub.docker.com/hardened-images/catalog/dhi/nginx
 FROM nginx:${NGINX_VERSION}
@@ -93,6 +96,7 @@ COPY --from=builder --chown=nginx /build/web/apps/albums/out /out/albums
 COPY --from=builder --chown=nginx /build/web/apps/auth/out /out/auth
 COPY --from=builder --chown=nginx /build/web/apps/cast/out /out/cast
 COPY --from=builder --chown=nginx /build/web/apps/embed/out /out/embed
+COPY --from=builder --chown=nginx /build/web/apps/locker/out /out/locker
 COPY --from=builder --chown=nginx /build/web/apps/memories/out /out/memories
 COPY --from=builder --chown=nginx /build/web/apps/paste/out /out/paste
 COPY --from=builder --chown=nginx /build/web/apps/photos/out /out/photos
@@ -136,6 +140,10 @@ server {
     location / { try_files \$uri \$uri.html /index.html; }
 }
 server {
+    listen 3009; root /out/locker;
+    location / { try_files \$uri \$uri.html /index.html; }
+}
+server {
     listen 3010; root /out/memories;
     location / { try_files \$uri \$uri.html /index.html; }
 }
@@ -150,6 +158,7 @@ EXPOSE 3005
 EXPOSE 3006
 EXPOSE 3007
 EXPOSE 3008
+EXPOSE 3009
 EXPOSE 3010
 
 ENV ENTE_API_ORIGIN=http://localhost:8080

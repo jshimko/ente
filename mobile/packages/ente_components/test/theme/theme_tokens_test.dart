@@ -162,7 +162,7 @@ void main() {
         "caution/light": Color.fromRGBO(250, 244, 235, 1),
         "fill/base": Color.fromRGBO(0, 0, 0, 1),
         "fill/dark": Color.fromRGBO(234, 234, 234, 1),
-        "fill/darker": Color.fromRGBO(233, 233, 233, 1),
+        "fill/darker": Color.fromRGBO(222, 222, 222, 1),
         "fill/darkest": Color.fromRGBO(210, 210, 210, 1),
         "fill/light": Color.fromRGBO(255, 255, 255, 1),
         "primary/dark": Color.fromRGBO(6, 157, 30, 1),
@@ -183,7 +183,7 @@ void main() {
         "text/darker": Color.fromRGBO(21, 21, 21, 1),
         "text/light": Color.fromRGBO(102, 102, 102, 1),
         "text/lighter": Color.fromRGBO(150, 150, 150, 1),
-        "text/lightest": Color.fromRGBO(222, 222, 222, 1),
+        "text/lightest": Color.fromRGBO(214, 214, 214, 1),
         "text/reverse": Color.fromRGBO(255, 255, 255, 1),
         "warning/dark": Color.fromRGBO(221, 52, 52, 1),
         "warning/darker": Color.fromRGBO(197, 46, 46, 1),
@@ -239,6 +239,19 @@ void main() {
   group("text styles", () {
     test("match the published type scale", () {
       expect(TextStyles.fontFamily, "Inter");
+      expect(TextStyles.outfitFontFamily, "Outfit");
+
+      expect(TextStyles.display1.fontFamily, "Outfit");
+      expect(TextStyles.display1.fontSize, 32);
+      expect(TextStyles.display1.height, 40 / 32);
+      expect(TextStyles.display1.fontWeight, FontWeight.w600);
+      expect(TextStyles.display1.letterSpacing, 0);
+
+      expect(TextStyles.display2.fontFamily, "Outfit");
+      expect(TextStyles.display2.fontSize, 24);
+      expect(TextStyles.display2.height, 32 / 24);
+      expect(TextStyles.display2.fontWeight, FontWeight.w600);
+      expect(TextStyles.display2.letterSpacing, 0);
 
       expect(TextStyles.h1.fontSize, 20);
       expect(TextStyles.h1.height, 28 / 20);
@@ -248,6 +261,11 @@ void main() {
       expect(TextStyles.h2.fontSize, 18);
       expect(TextStyles.h2.height, 24 / 18);
       expect(TextStyles.h2.fontWeight, FontWeight.w600);
+
+      expect(TextStyles.display3.fontFamily, "Outfit");
+      expect(TextStyles.display3.fontSize, 20);
+      expect(TextStyles.display3.height, 28 / 20);
+      expect(TextStyles.display3.fontWeight, FontWeight.w600);
 
       expect(TextStyles.body.fontSize, 14);
       expect(TextStyles.body.height, 20 / 14);
