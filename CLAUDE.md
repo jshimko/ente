@@ -4,8 +4,8 @@ Root reference guide for the Ente monorepo. For component-specific guidance, see
 
 **Purpose:** Fully open-source, end-to-end encrypted cloud platform with three products: Ente Photos, Ente Auth (2FA), and Ente Locker (document storage).
 
-**Documented:** 2026-04-04
-**Commit:** 0618f522ee
+**Documented:** 2026-05-29
+**Commit:** 8185f4a781
 
 ---
 
@@ -14,8 +14,8 @@ Root reference guide for the Ente monorepo. For component-specific guidance, see
 | To work on...                 | Go to...        | CLAUDE.md                                                      |
 | ----------------------------- | --------------- | -------------------------------------------------------------- |
 | Web apps (Photos, Auth, etc.) | `web/`          | `web/CLAUDE.md`                                                |
-| Mobile apps (Flutter)         | `mobile/`       | `mobile/apps/photos/CLAUDE.md`, `mobile/apps/locker/CLAUDE.md` |
-| Desktop app (Electron)        | `desktop/`      | —                                                              |
+| Mobile apps (Flutter)         | `mobile/`       | `mobile/CLAUDE.md`, `mobile/apps/photos/CLAUDE.md`, `mobile/apps/locker/CLAUDE.md` |
+| Desktop app (Electron)        | `desktop/`      | `desktop/CLAUDE.md`                                            |
 | API server ("Museum")         | `server/`       | `server/CLAUDE.md`                                             |
 | CLI tool                      | `cli/`          | —                                                              |
 | Shared Rust core              | `rust/`         | —                                                              |
@@ -31,20 +31,18 @@ Root reference guide for the Ente monorepo. For component-specific guidance, see
 ente/
 ├── server/           # Go API server ("Museum") — Gin, PostgreSQL
 ├── web/              # Next.js/React/TypeScript web apps (Yarn workspaces)
-│   ├── apps/         # photos, auth, accounts, albums, cast, embed, ensu, locker, memories, paste, payments, share, twoof3
-│   └── packages/     # accounts, accounts-rs, base, build-config, gallery, media, new, utils, wasm
+│   ├── apps/         # photos, auth, accounts, albums, cast, embed, ensu, legacy, locker, memories, paste, payments, share, twoof3
+│   └── packages/     # accounts, accounts-rs, base, build-config, contacts, gallery, media, new, utils, wasm
 ├── mobile/           # Flutter/Dart mobile apps (Melos monorepo)
 │   ├── apps/         # photos, auth, locker
-│   └── packages/     # 22 shared packages (accounts, crypto, ui, network, etc.)
+│   └── packages/     # 24 shared packages (accounts, crypto, ui, network, etc.)
 ├── desktop/          # Electron wrapper around web Photos app
 ├── cli/              # Go CLI for data export and account management
 ├── rust/             # Shared Rust core (crypto, auth, media inspection)
-│   ├── apps/         # Tauri-wrapped desktop apps (ensu)
-│   ├── core/         # ente-core — pure Rust, no FFI
-│   ├── cli/          # ente-rs — Rust CLI binary
-│   ├── photos/       # ente_media_inspector
-│   ├── ensu/         # LLM chat stack
-│   └── uniffi/       # UniFFI bindings for native platforms
+│   ├── crates/       # Library crates: core (ente-core), accounts, contacts, ensu, image, photos
+│   ├── apps/         # Binary apps: cli (ente-rs), codegen, ensu (Tauri desktop)
+│   ├── bindings/     # Client bindings: uniffi (native), wasm (web), frb (Flutter), ffi
+│   └── e2e/          # End-to-end tests
 ├── docs/             # VitePress documentation site (ente.com/help)
 ├── architecture/     # E2EE architecture docs and SVG diagrams
 ├── infra/            # ML models, Cloudflare Workers, deployment services
@@ -58,8 +56,8 @@ ente/
 | Component | Language     | Framework/Runtime           | Key Dependencies                                |
 | --------- | ------------ | --------------------------- | ----------------------------------------------- |
 | Server    | Go 1.23      | Gin                         | PostgreSQL, AWS SDK (S3), SRP, Stripe, Firebase |
-| Web       | TypeScript   | Next.js 15, React 19, MUI 7 | libsodium-wrappers, Yarn 1.22, Turborepo         |
-| Mobile    | Dart/Flutter | Flutter 3.32.8              | Melos, sqlite_async, ONNX Runtime, FFmpeg       |
+| Web       | TypeScript   | Next.js 15, React 19, MUI 7 | libsodium-wrappers, Yarn 1.22, Turborepo        |
+| Mobile    | Dart/Flutter | Flutter 3.38.10             | Melos, sqlite_async, ONNX Runtime, FFmpeg       |
 | Desktop   | TypeScript   | Electron 41                 | electron-builder, ONNX, FFmpeg                  |
 | CLI       | Go 1.23      | Cobra                       | go-keyring, go-resty                            |
 | Rust      | Rust         | tokio, wasm-bindgen         | libsodium, UniFFI, Flutter Rust Bridge          |
@@ -168,7 +166,7 @@ All data is encrypted client-side before leaving the device. The server stores o
 **Key hierarchy:**
 
 1. **masterKey** — generated on signup, never leaves device unencrypted
-2. **keyEncryptionKey (KEK)** — derived from user password via Argon2 (min 128MB memory)
+2. **keyEncryptionKey (KEK)** — derived from user password via Argon2 (Argon2id, memory-hard KDF)
 3. **collectionKey** — per-album/folder, encrypted with masterKey
 4. **fileKey** — per-file, encrypted with collectionKey
 
@@ -190,8 +188,8 @@ Multi-layer auth implemented via SRP (Secure Remote Password):
 3. Optional: WebAuthn/passkeys, TOTP, email MFA
 4. Recovery keys for account recovery
 
-Auth flow details: `rust/core/docs/auth.md`
-Crypto wire formats: `rust/core/docs/crypto.md`
+Auth flow details: `rust/crates/core/docs/auth.md`
+Crypto wire formats: `rust/crates/core/docs/crypto.md`
 
 ### Data Flow
 
@@ -204,10 +202,10 @@ Museum (server) is stateless. All persistent state lives in PostgreSQL (metadata
 ### Cross-Platform Code Sharing
 
 ```
-rust/core/ (ente-core)
-  ├── → web via wasm-bindgen (web/packages/wasm/)
-  ├── → mobile via Flutter Rust Bridge (mobile/packages/rust/)
-  └── → CLI via direct Rust dependency (rust/cli/)
+rust/crates/core/ (ente-core)
+  ├── → web via wasm-bindgen (rust/bindings/wasm/ → web/packages/wasm/)
+  ├── → mobile via Flutter Rust Bridge (rust/bindings/frb/ → mobile/packages/rust/)
+  └── → CLI via direct dependency (rust/apps/cli/, ente-rs)
 ```
 
 ---
@@ -225,7 +223,7 @@ rust/core/ (ente-core)
 
 ## Database & Migrations
 
-- Server uses PostgreSQL with 238 migration files in `server/migrations/`
+- Server uses PostgreSQL with 246 migration files in `server/migrations/`
 - Mobile apps use SQLite via `sqlite_async` / `sqflite`
 - Web apps use browser-side storage
 
@@ -277,10 +275,10 @@ Mobile/desktop apps: tap onboarding screen 7 times to access developer settings 
 
 ### To add Rust functionality accessible from clients
 
-1. Implement in `rust/core/` (pure Rust, no FFI)
-2. Expose via `rust/uniffi/` for mobile (Flutter Rust Bridge)
-3. Expose via `web/packages/wasm/` for web (wasm-bindgen)
-4. Run `flutter_rust_bridge_codegen generate` for mobile bindings
+1. Implement in `rust/crates/core/` (pure Rust, no FFI)
+2. Expose for mobile via `rust/bindings/frb/` (Flutter Rust Bridge) — surfaces in `mobile/packages/rust/`
+3. Expose for web via `rust/bindings/wasm/` (wasm-bindgen) — built into `web/packages/wasm/`
+4. Regenerate bindings with `task mobile:codegen` (or `cargo codegen frb` / `cargo codegen native`)
 
 ### To run the full local stack
 
@@ -316,7 +314,7 @@ task web:dev
 - Externally audited by **Cure53**, **Symbolic Software**, and **Fallible**
 - Security vulnerabilities: email <security@ente.com>
 - Architecture docs: `architecture/README.md`
-- Crypto implementation: `rust/core/docs/crypto.md`
+- Crypto implementation: `rust/crates/core/docs/crypto.md`
 
 ---
 

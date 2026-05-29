@@ -2,8 +2,8 @@
 
 Go API server powering all Ente clients (Photos, Auth, Locker). Handles authentication, E2EE key management, file metadata, billing, and multi-datacenter object replication.
 
-**Documented:** 2026-05-18
-**Commit:** 1a73928e4f
+**Documented:** 2026-05-28
+**Commit:** 8185f4a781
 
 ---
 
@@ -11,7 +11,7 @@ Go API server powering all Ente clients (Photos, Auth, Locker). Handles authenti
 
 ```sh
 server/
-├── cmd/museum/main.go         # Entry point: config, DB, routing, cron jobs (~1,406 lines)
+├── cmd/museum/main.go         # Entry point: config, DB, routing, cron jobs (~1,437 lines)
 ├── ente/                      # Domain models & entities (pure data, no I/O)
 │   ├── user.go, file.go, collection.go, billing.go, errors.go, app.go, ...
 │   ├── legacy_kit.go          # Legacy crypto kit recovery models
@@ -73,7 +73,7 @@ server/
 │       ├── wasabi/            # Wasabi compliance hold management
 │       ├── zoho/              # Zoho Zeptomail email API
 │       └── listmonk/          # Listmonk email marketing API
-├── migrations/                # 122 PostgreSQL migrations, 244 files with up/down (golang-migrate)
+├── migrations/                # 123 PostgreSQL migrations, 246 files with up/down (golang-migrate)
 ├── configurations/            # Environment YAML configs
 │   ├── base.yaml              # Base config (establishes key hierarchy)
 │   ├── local.yaml             # Dev defaults (port 8080, MinIO, stdout logging)
@@ -122,7 +122,7 @@ S3 (3 DCs)       Encrypted file data (B2, Wasabi, Scaleway)
 
 | To find...                    | Look in...                                                 |
 | ----------------------------- | ---------------------------------------------------------- |
-| All HTTP routes               | `cmd/museum/main.go:523-1040` (route registration)         |
+| All HTTP routes               | `cmd/museum/main.go:528-1044` (route registration)         |
 | A specific API handler        | `pkg/api/<domain>.go`                                      |
 | Business logic for a feature  | `pkg/controller/<domain>.go` or `pkg/controller/<domain>/` |
 | Database queries              | `pkg/repo/<domain>.go` or `pkg/repo/<domain>/`             |
@@ -143,8 +143,8 @@ S3 (3 DCs)       Encrypted file data (B2, Wasabi, Scaleway)
 | Email sending                 | `pkg/utils/email/email.go`                                 |
 | Billing plan definitions      | `pkg/utils/billing/`                                       |
 | DB migrations                 | `migrations/{number}_{name}.up.sql`                        |
-| Cron job schedules            | `cmd/museum/main.go:1210-1320`                             |
-| Background workers setup      | `cmd/museum/main.go:1159-1187`                             |
+| Cron job schedules            | `cmd/museum/main.go:1242-1354`                             |
+| Background workers setup      | `cmd/museum/main.go:1190-1218`                             |
 | Docker dev environment        | `compose.yaml`                                             |
 | Dev config defaults           | `configurations/local.yaml`                                |
 | Email HTML templates          | `mail-templates/`                                          |
@@ -172,6 +172,8 @@ All routes registered in `cmd/museum/main.go`. Ten route groups with different a
 
 - `X-Auth-Token` header or `token` query param → standard auth
 - `X-Auth-Access-Token` header or `accessToken` query param → public access
+- `X-Auth-Access-Token-JWT` header or `accessTokenJWT` query param → password-protected public links
+- `X-Auth-Link-Device-Token` header → per-device token for public collection/file/memory links
 - `X-Cast-Access-Token` header or `castToken` query param → cast device
 
 **App detection**: `X-Client-Package` header → `io.ente.auth` (Auth), `io.ente.locker` (Locker), default (Photos)
@@ -346,11 +348,14 @@ Prefix `ENTE_`, uppercase, replace `.` and `-` with `_`.
 | `internal.silent`               | Suppress Discord notifications                                    |
 | `internal.disable-registration` | Block new signups                                                 |
 | `internal.hardcoded-ott.*`      | Fixed OTP for testing                                             |
+| `internal.trusted-client-ip-header` | Header to read the real client IP from (when behind a proxy)  |
+| `internal.health-check-url`     | External URL pinged periodically by the health-check cron        |
+| `internal.is-self-hosted`       | Self-hosting flag (default `false`)                              |
 | `apps.*`                        | External app URLs (`public-albums`, `embed-albums`, `public-locker`, `public-paste`, `cast`, `accounts`, `accounts-legacy`, `family`, `public-memories`, `legacy`, `custom-domain`) |
 | `jobs.cron.skip`                | Disable all cron jobs                                             |
 | `replication.*`                 | Multi-DC replication config                                       |
 | `log-file`                      | Log file path (production)                                        |
-| `http.tls.*`                    | TLS certificate paths                                             |
+| `http.use-tls`, `http.port`     | Enable TLS and override the bind port (defaults: 8080 HTTP / 443 TLS); plus TLS certificate paths |
 
 ---
 
@@ -358,8 +363,11 @@ Prefix `ENTE_`, uppercase, replace `.` and `-` with `_`.
 
 **Engine:** PostgreSQL 15
 **Driver:** `github.com/lib/pq`
-**Migrations:** `golang-migrate/migrate/v4` — 122 migrations (244 files with up/down) in `migrations/`
-**Connection pool:** 6 idle, 45 max open, 30min lifetime, 10min idle timeout
+**Migrations:** `golang-migrate/migrate/v4` — 123 migrations (246 files with up/down) in `migrations/`
+**Connection pools** (two, both 30min lifetime / 10min idle timeout):
+
+- **Primary** (`setupDatabase`, `cmd/museum/main.go:1127`): 30 idle, 60 max open
+- **Latency-sensitive** (`setupLatencySensitiveDatabase`, `cmd/museum/main.go:1165`): 50 idle, 100 max open
 
 ### Migration pattern
 
@@ -367,7 +375,7 @@ Prefix `ENTE_`, uppercase, replace `.` and `-` with `_`.
 migrations/1_create_tables.up.sql
 migrations/1_create_tables.down.sql
 ...
-migrations/122_*.up.sql
+migrations/123_*.up.sql
 ```
 
 Migrations run automatically on startup in `setupDatabase()`.
@@ -458,7 +466,7 @@ return tx.Commit()
 
 ### Background workers (goroutines)
 
-Started in `setupAndStartBackgroundJobs()` (`cmd/museum/main.go:1130`):
+Started in `setupAndStartBackgroundJobs()` (`cmd/museum/main.go:1190`):
 
 - **File Replication V3** — replicate objects to secondary DCs (requires `replication.enabled: true`)
 - **File Data Replication** — replicate file metadata (requires `replication.enabled: true`)
@@ -603,7 +611,7 @@ go run tools/gen-random-keys/main.go
 
 ## Critical Gotchas
 
-1. **`main.go` is massive** (~1,406 lines) — all DI wiring, route registration, and cron setup live here. Search by handler/controller name to find routes.
+1. **`main.go` is massive** (~1,437 lines) — all DI wiring, route registration, and cron setup live here. Search by handler/controller name to find routes.
 2. **No ORM** — all SQL is hand-written in repo files. Check `migrations/` for schema.
 3. **Emails are encrypted at rest** — stored via `pkg/utils/crypto/`, looked up by BLAKE2b hash. The `key.encryption` and `key.hash` config values are critical.
 4. **Three S3 buckets required** — hardcoded names `b2-eu-cen`, `wasabi-eu-central-2-v3`, `scw-eu-fr-v3`. Any S3-compatible provider works; names are arbitrary.

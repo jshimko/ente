@@ -2,10 +2,10 @@
 
 Reference guide for the Ente Photos mobile app. For monorepo-wide guidance (shared packages, Melos, lint rules, design system), see `mobile/CLAUDE.md`.
 
-**Purpose:** End-to-end encrypted photo backup and management app built with Flutter/Dart. Largest app in the Ente mobile monorepo (400+ dependencies, 50+ services, ML features, Rust FFI).
+**Purpose:** End-to-end encrypted photo backup and management app built with Flutter/Dart. Largest app in the Ente mobile monorepo (400+ dependencies, 60+ services, ML features, Rust FFI).
 
-**Documented:** 2026-05-18
-**Commit:** a203b25e7e
+**Documented:** 2026-05-28
+**Commit:** 1f562071c4
 
 ---
 
@@ -129,7 +129,7 @@ Boot sequence:
 1. `main()` in `lib/main.dart` -- FFmpeg, Rive, MediaKit init, theme loading
 2. `_init()` -- Configuration, NetworkClient, ServiceLocator, all services init
 3. `EnteApp` in `lib/app.dart` -- MaterialApp with AdaptiveTheme, locale, deeplinks
-4. `HomeWidget` in `lib/ui/tabs/home_widget.dart` -- Main tab navigation
+4. `HomeWidget` in `lib/ui/tabs/home_widget.dart` -- Main tab navigation (Home → Albums → Feed → Search)
 
 Background boot (Workmanager):
 
@@ -141,10 +141,10 @@ Background boot (Workmanager):
 | `lib/main.dart`                          | App entry point, background task dispatcher, sync scheduling |
 | `lib/app.dart`                           | Root widget (EnteApp), locale changes, deeplink routing      |
 | `lib/app_mode.dart`                      | App mode enum (`enteGallery` / `localGallery`); local gallery is the no-account on-device library experience |
-| `lib/service_locator.dart`               | All service singletons (39 lazy getters)                     |
-| `lib/core/configuration.dart`            | User config, encryption keys, secure storage (26KB)          |
+| `lib/service_locator.dart`               | All service singletons (43 lazy getters)                     |
+| `lib/core/configuration.dart`            | User config, encryption keys, secure storage (25KB)          |
 | `lib/core/network/network.dart`          | Dio HTTP clients (enteDio, nonEnteDio)                       |
-| `lib/core/network/endpoint_config.dart`  | Server endpoint config decoupled from startup; listens for `EndpointUpdatedEvent` for runtime endpoint switching |
+| `lib/core/network/endpoint_config.dart`  | Server endpoint config decoupled from startup; fires `EndpointUpdatedEvent` (defined here), which `NetworkClient` listens for to switch backends at runtime |
 | `lib/core/network/ente_interceptor.dart` | Auth token injection, error handling                         |
 | `lib/core/event_bus.dart`                | Event bus singleton (`Bus.instance`)                         |
 | `lib/ente_theme_data.dart`               | Light/dark Material theme definitions                        |
@@ -153,7 +153,7 @@ Background boot (Workmanager):
 
 | Pattern          | Implementation                               | Access                                                     |
 | ---------------- | -------------------------------------------- | ---------------------------------------------------------- |
-| Service Locator  | `lib/service_locator.dart`                   | `ServiceLocator.instance`, 39 lazy getters at module level |
+| Service Locator  | `lib/service_locator.dart`                   | `ServiceLocator.instance`, 43 lazy getters at module level |
 | Event Bus        | `lib/core/event_bus.dart`                    | `Bus.instance.on<T>().listen()` / `Bus.instance.fire()`    |
 | Gateway Pattern  | `lib/gateways/` (11 subdirs)                 | Services -> Gateways -> Dio -> Museum API                  |
 | SQLite DB Layer  | `lib/db/` (13 top-level + `db/ml/` subsystem) | `sqlite_async` with `SqlDbBase` mixin from `db/common/`   |
@@ -198,7 +198,7 @@ All services in `lib/services/`. Most are singletons accessed via lazy getters i
 
 | Service              | File                                      | Purpose                                      |
 | -------------------- | ----------------------------------------- | -------------------------------------------- |
-| CollectionsService   | `services/collections_service.dart`       | Album management, encryption, sharing (84KB) |
+| CollectionsService   | `services/collections_service.dart`       | Album management, encryption, sharing (88KB) |
 | FilesService         | `services/files_service.dart`             | File metadata operations                     |
 | FavoritesService     | `services/favorites_service.dart`         | Favorite/starred items                       |
 | HiddenService        | `services/hidden_service.dart`            | Hidden collection management                 |
@@ -211,7 +211,7 @@ All services in `lib/services/`. Most are singletons accessed via lazy getters i
 
 | Service            | File                                 | Purpose                          |
 | ------------------ | ------------------------------------ | -------------------------------- |
-| SearchService      | `services/search_service.dart`       | Multi-type search with ML (65KB) |
+| SearchService      | `services/search_service.dart`       | Multi-type search with ML (68KB) |
 | SmartAlbumsService | `services/smart_albums_service.dart` | Auto-generated albums            |
 | DateParseService   | `services/date_parse_service.dart`   | Natural language date parsing    |
 
@@ -227,6 +227,7 @@ All services in `lib/services/`. Most are singletons accessed via lazy getters i
 | ComputeController      | `services/machine_learning/compute_controller.dart`                      | ML compute workload management |
 | MLComputer             | `services/machine_learning/ml_computer.dart`                             | Dedicated ML isolate           |
 | FaceThumbnailGenerator | `services/machine_learning/face_thumbnail_generator.dart`                | Face crop thumbnails           |
+| MLModelDownloadService | `services/machine_learning/ml_model_download_service.dart`               | Hash-checked ML model download/re-download |
 
 **Model integrity:** ML model files are hash-checked on download. When the ONNX runtime fails on a model (e.g., corrupted CLIP text encoder), the model file is deleted, indexing pauses, and the file is re-downloaded on the next sync. This avoids infinite retry loops on broken model state and is the primary reason both decoders writing empty ML results is preferable to throwing.
 
@@ -364,15 +365,15 @@ All UI in `lib/ui/`.
 
 | Directory          | Purpose         | Key Screens                          |
 | ------------------ | --------------- | ------------------------------------ |
-| `ui/home/`         | Photo gallery   | Home gallery grid                    |
+| `ui/home/`         | Photo gallery   | Home gallery grid, `home_bottom_nav_bar.dart` (4-tab nav) |
 | `ui/tabs/`         | Main navigation | `home_widget.dart` -- tab bar        |
 | `ui/viewer/`       | File viewer     | Image/video viewer, people, location |
 | `ui/collections/`  | Albums          | Album list, create, share            |
 | `ui/account/`      | Auth screens    | Login, signup, password reset        |
-| `ui/settings/`     | Settings        | Preferences, about, storage          |
+| `ui/settings/`     | Settings        | Per-feature subdirs (account, backup, ml, security, streaming, …) + `settings/components/` scaffolding |
 | `ui/payment/`      | Subscription    | Plans, billing, family               |
 | `ui/sharing/`      | Sharing         | Album sharing, public links          |
-| `ui/social/`       | Social          | Comments, collaboration              |
+| `ui/social/`       | Social          | Comments, collaboration, `feed_screen.dart` (Feed tab) |
 | `ui/map/`          | Location map    | Map view with photo markers          |
 | `ui/family/`       | Family plan     | Family sharing management            |
 | `ui/cast/`         | Casting         | Chromecast UI                        |
@@ -381,7 +382,7 @@ All UI in `lib/ui/`.
 | `ui/picker/`       | Pickers         | File/album picker flows              |
 | `ui/tools/`        | Editing         | Image/video editing, app lock        |
 | `ui/actions/`      | Context menus   | File/album actions                   |
-| `ui/components/`   | Shared widgets  | Component subdirectories             |
+| `ui/components/`   | Shared widgets  | Reusable building blocks: `buttons/soft_icon_button.dart`, `buttons/filter_pill_widget.dart`, `popup_menu/ente_popup_menu_button.dart`, `thumbnail_list_item.dart`, `collection_share_badge.dart` |
 | `ui/common/`       | Common widgets  | Theme-aware reusable components      |
 | `ui/growth/`       | Referrals       | Growth/referral UI                   |
 | `ui/notification/` | Notifications   | In-app notification UI               |
@@ -408,6 +409,7 @@ All UI in `lib/ui/`.
 | `BackupFoldersUpdatedEvent`  | Backup folder selection changed           |
 | `FileUploadedEvent`          | Individual file upload completed          |
 | `UserDetailsChangedEvent`    | User profile or family status changes     |
+| `TabChangedEvent`            | Bottom-nav tab switch (drives `home_widget.dart`) |
 
 ---
 
@@ -442,8 +444,9 @@ lib/
 ├── data/                  # Static data (holidays, months, years)
 ├── emergency/             # Emergency contact recovery (pages, service, models)
 ├── theme/                 # Theme definitions (colors, effects, text styles)
-├── services/              # Business logic (58+ services)
+├── services/              # Business logic (60+ services)
 │   ├── sync/              # Local, remote, trash sync
+│   │   └── import/        # Local-asset import (diff, local_assets)
 │   ├── machine_learning/  # ML pipeline orchestration
 │   │   ├── face_ml/       # Face detection, recognition, clustering, person
 │   │   ├── semantic_search/  # CLIP-based image search
@@ -518,6 +521,7 @@ Located in `plugins/`. These are NOT shared with Auth/Locker.
 2. Use `getEnteColorScheme(context)` and `getEnteTextTheme(context)` at top of `build()`
 3. Check `ui/components/` and `../../packages/ui/` for reusable widgets before creating new ones
 4. Navigate via `AppNavigationService.instance.pushPage(widget)`
+5. For a settings screen, build on `ui/settings/components/settings_page_scaffold.dart` + `settings_item.dart` — each settings area lives in its own `ui/settings/<area>/` subdirectory
 
 ### Add a new database table
 

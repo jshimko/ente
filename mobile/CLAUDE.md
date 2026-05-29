@@ -4,8 +4,8 @@ Reference guide for the Ente mobile monorepo workspace. For app-specific guidanc
 
 **Purpose:** Flutter/Dart monorepo containing three Ente mobile apps (Photos, Auth, Locker) and 24 shared packages, managed by Melos.
 
-**Documented:** 2026-05-18
-**Commit:** a203b25e7e
+**Documented:** 2026-05-28
+**Commit:** 8185f4a781
 
 ---
 
@@ -36,7 +36,7 @@ Reference guide for the Ente mobile monorepo workspace. For app-specific guidanc
 ```
 mobile/
 ├── apps/
-│   ├── photos/              # Photo backup & management (v1.3.45+1785)
+│   ├── photos/              # Photo backup & management (v1.3.47+1788)
 │   │   ├── lib/             # Main Dart source (services, ui, models, db, gateways)
 │   │   ├── plugins/         # Photos-specific Flutter plugins
 │   │   │   ├── ente_cast/           # Chromecast integration (variants wired at flavor layer)
@@ -65,7 +65,7 @@ mobile/
 
 | App     | Package Name | Version        | Dart SDK         | Entry Point      | Platforms              |
 | ------- | ------------ | -------------- | ---------------- | ---------------- | ---------------------- |
-| Photos  | `photos`     | 1.3.45+1785    | >=3.10.0 <4.0.0 | `lib/main.dart`  | Android, iOS           |
+| Photos  | `photos`     | 1.3.47+1788    | >=3.10.0 <4.0.0 | `lib/main.dart`  | Android, iOS           |
 | Auth    | `ente_auth`  | 4.4.23+877     | >=3.10.0 <4.0.0 | `lib/main.dart`  | Android, iOS, Desktop  |
 | Locker  | `locker`     | 1.0.4+104      | >=3.10.0 <4.0.0 | `lib/main.dart`  | Android, iOS, Desktop  |
 
@@ -180,8 +180,8 @@ All apps use lazy-initialized singletons. No DI framework (no GetIt, no Riverpod
 FlagService? _flagService;
 FlagService get flagService => _flagService ??= FlagService(...);
 ```
-- Photos: `apps/photos/lib/service_locator.dart` (377 lines, 39 lazy getters)
-- Locker/Auth: Services initialized in `main.dart`
+- Photos: `apps/photos/lib/service_locator.dart` (379 lines, 40 lazy getters)
+- Locker/Auth: Services initialized in `main.dart` (Locker also has a small local `ServiceLocator` for downloads; Auth has no service locator)
 
 ### Event Bus
 Cross-component communication via `ente_events` package (`event_bus` from pub.dev).
@@ -198,23 +198,24 @@ UI → Service → Gateway → Dio → Ente Server
                   ↓
               SQLite DB → Event Bus → UI refresh
 ```
-Photos gateways: `apps/photos/lib/gateways/` (Files, Collections, Users, Billing, Social, Trash)
+Photos gateways live in `apps/photos/lib/gateways/`, grouped into ~11 subdirectories (`billing/`, `cast/`, `collections/`, `emergency/`, `entity/`, `files/`, `push/`, `social/`, `storage_bonus/`, `trash/`, `users/`) holding ~18 gateway classes, each constructed with a `Dio` instance.
 
 ### SQLite Database Layer
-- Photos: `sqlite_async` wrapper with versioned migrations (`PRAGMA user_version`)
+- Photos: uses both `sqlite_async` and `sqflite` (plus `sqflite_migration`) with versioned migrations (`PRAGMA user_version`)
 - Locker: `sqflite` with sync-time tracking for incremental sync
-- Base mixin: `SqlDbBase` handles migration scripts atomically
+- Base mixin: `SqlDbBase` (`apps/photos/lib/db/common/base.dart`) handles migration scripts atomically
 
 ### Rust FFI (flutter_rust_bridge)
 Performance-critical operations (ML inference, crypto, vector search) run in Rust:
 - Shared bindings: `packages/rust/` → generates `frb_generated.dart`
 - Photos-specific: `apps/photos/rust_builder/` → ML compute in isolated `MLComputer` isolate
-- Codegen: `flutter_rust_bridge_codegen generate`
+- Codegen: a single `melos run codegen:rust` regenerates all bindings — it runs the repo-pinned FRB generator via `cargo codegen frb` in `rust/`
 
 ### Code Generation
-- **Freezed** (`^3.0.6`): Immutable models with `.freezed.dart` + `.g.dart`
-- **JSON Serializable** (`^6.6.1`): JSON serialization
-- **intl_utils** (`^2.8.7`): Localization from ARB files → `AppLocalizations`
+- **Freezed** (`3.2.0`): Immutable models with `.freezed.dart` + `.g.dart`
+- **JSON Serializable** (`6.10.0`): JSON serialization
+- **intl_utils** (`2.8.10`): Localization from ARB files → `AppLocalizations`
+- **flutter_rust_bridge** (`2.12.0`): Rust FFI bindings (see Rust FFI above)
 - Run: `dart run build_runner build --delete-conflicting-outputs`
 
 ---
@@ -225,11 +226,9 @@ Performance-critical operations (ML inference, crypto, vector search) run in Rus
 
 ```bash
 melos bootstrap                    # Link all local packages (ALWAYS use instead of flutter pub get)
-melos run codegen:rust             # Generate Rust bindings for all packages
-melos run codegen:rust:packages    # Rust bindings for packages/rust only
-melos run codegen:rust:photos      # Rust bindings for apps/photos only
-melos run get:all                  # flutter pub get in all projects
-melos run get:plugins              # flutter pub get in apps/photos/plugins/* only
+melos run codegen:rust             # Generate all Rust bindings (runs `cargo codegen frb` in rust/)
+melos run get:all                  # flutter pub get --enforce-lockfile in all projects
+melos run get:plugins              # flutter pub get --enforce-lockfile in apps/photos/plugins/* only
 melos run clean:all                # flutter clean in all projects
 melos run clean:plugins            # flutter clean in apps/photos/plugins/* only
 ```
@@ -366,8 +365,7 @@ melos run run:photos:apk    # or run:auth:apk or run:locker:apk
 
 ### Generate Rust bindings
 ```bash
-cargo install flutter_rust_bridge_codegen   # One-time
-cd mobile && melos run codegen:rust         # Generates for both packages/rust and apps/photos
+cd mobile && melos run codegen:rust   # Runs `cargo codegen frb` in rust/ (repo-pinned FRB generator)
 ```
 
 ### Add a localization string
@@ -384,8 +382,8 @@ cd mobile && melos run codegen:rust         # Generates for both packages/rust a
 3. **`flutter_secure_storage` pinned at v9.0.0** — due to a bug where lockscreen keys don't persist after reinstall (GitHub issue #870)
 4. **Package imports only** — `always_use_package_imports` is enforced; never use relative imports across packages
 5. **Large service files** — Photos `collections_service.dart` is 84KB+; some services exceed 70K lines. Be mindful of context limits
-6. **Melos scope names must match `pubspec.yaml` `name` fields** — `photos`, `ente_auth`, `locker`
-7. **Rust codegen must run after Rust source changes** — both `packages/rust` and `apps/photos` have separate codegen targets
+6. **Melos `--scope` must match the `pubspec.yaml` `name` field** — Photos (`photos`) and Locker (`locker`) match, but the auth scripts use `--scope="auth"` while the app is named `ente_auth`, so `run:auth:apk` / `build:auth:appbundle` / `clean:auth` match no package. Run or build Auth from `apps/auth/` directly
+7. **Rust codegen must run after Rust source changes** — a single `melos run codegen:rust` (`cargo codegen frb` in `rust/`) regenerates all bindings
 8. **Desktop apps need window init before `runApp()`** — Locker and Auth initialize `windowManager` in `main.dart` before the app starts
 9. **Flutter 3.38.10 required** — pinned in `mobile/.fvmrc` and in every CI workflow (`FLUTTER_VERSION: "3.38.10"`); matches the `>=3.10.0 <4.0.0` Dart SDK constraint in `apps/*/pubspec.yaml`. Melos invokes Flutter via the FVM symlink (`sdkPath: .fvm/flutter_sdk` in `melos.yaml`), so `fvm install 3.38.10` is required before running any `melos run …` commands
 10. **Cancel stream subscriptions** — `cancel_subscriptions` is ERROR level; always cancel in `dispose()`

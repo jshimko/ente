@@ -4,8 +4,8 @@ Reference guide for the Ente web monorepo (`web/`). For root-level context see `
 
 **Purpose:** 14 web applications and 10 shared packages for Ente's E2EE cloud platform — Photos, Auth, Locker, and more.
 
-**Documented:** 2026-05-18
-**Commit:** a203b25e7e
+**Documented:** 2026-05-28
+**Commit:** 8185f4a781
 
 ---
 
@@ -106,7 +106,7 @@ web/
 │   ├── media/         # Media processing (FFmpeg, image conversion)
 │   ├── utils/         # General utilities
 │   ├── new/           # A temporary place for code shared by photos and albums
-│   ├── wasm/          # Rust core crypto/auth compiled to WASM
+│   ├── wasm/          # WASM loader package (Rust source in rust/bindings/wasm/ente-wasm/)
 │   └── build-config/  # Shared build configuration
 │
 └── docs/          # Development documentation
@@ -126,7 +126,7 @@ web/
 | `accounts` (ente-accounts)         | React/TS  | Auth UI + SRP login (JS-based crypto via libsodium)                          |
 | `accounts-rs` (ente-accounts-rs)   | React/TS  | Auth UI + SRP login (Rust WASM crypto — newer, used by locker and legacy)    |
 | `contacts` (ente-contacts-web)     | React/TS  | Contact management, display resolution, avatar loading (WASM crypto)         |
-| `wasm` (ente-wasm)                 | Rust→WASM | Rust core crypto/auth compiled to WebAssembly via wasm-pack                  |
+| `wasm` (ente-wasm)                 | Rust→WASM | Loader for Rust core crypto/auth. Source lives in `rust/bindings/wasm/ente-wasm/`; `wasm-pack` compiles it into `pkg/`. Exposes `ente-wasm` and `ente-wasm/load` |
 | `build-config` (ente-build-config) | Config    | Shared tsconfig, eslint, prettier configs                                    |
 
 ### Package dependency layers
@@ -138,7 +138,7 @@ ente-base           (React, MUI, libsodium, i18n, HTTP)
     ↑
 ente-media          (file types, metadata, HEIC)
 
-ente-wasm           (Rust core → WASM, independent)
+ente-wasm           (Rust core → WASM, independent; source in rust/bindings/wasm/ente-wasm/)
     ↑
 ente-accounts-rs    (WASM-based auth — used by locker and legacy)
 
@@ -166,7 +166,7 @@ ente-accounts       (JS-based auth, older — uses libsodium directly)
 | `server-config.ts`          | `isRegistrationDisabled()` — cached `/ping` lookup that hides signup UI                              |
 | `public-memory.ts`          | Public memory share fetch + decrypt helpers (X-Auth-Access-Token endpoints)                          |
 | `app.ts`                    | App name detection, `clientPackageName`, `isDesktop` flag                                            |
-| `i18n.ts`                   | i18next setup (49 locale directories, 20 supported)                                                  |
+| `i18n.ts`                   | i18next setup (50 locale directories, 20 supported)                                                  |
 | `kv.ts`                     | Key-value storage abstraction (IndexedDB-backed)                                                     |
 | `log.ts`, `log-web.ts`      | Logging — `log.info/warn/error/debug`, web + desktop sinks                                           |
 | `env.ts`                    | Env-var helpers (e.g. `isDevBuild()`)                                                                |
@@ -216,7 +216,7 @@ Three layers:
 
 1. `packages/base/crypto/index.ts` — high-level API
 2. `packages/base/crypto/libsodium.ts` — JS implementation
-3. `packages/wasm/src/crypto.rs` — Rust WASM alternative
+3. `rust/bindings/wasm/ente-wasm/src/crypto.rs` — Rust WASM alternative (compiled into `packages/wasm/pkg/`)
 
 Crypto runs in Web Workers to avoid blocking the main thread.
 
@@ -253,12 +253,16 @@ These variables previously affected client behavior but no longer do — link/ha
 - **Yarn 1.22.22** workspaces: `apps/*` + `packages/*`
 - **Turborepo** (`turbo.json`) manages task dependencies, ordering, and caching across all workspaces
 - **WASM builds automatically** — Turbo's `dependsOn: ["^build"]` ensures WASM builds before dependent apps
-- **WASM build**: `wasm-pack build --target bundler` → outputs `packages/wasm/pkg/`
+- **WASM build**: `wasm-pack build ../../../rust/bindings/wasm/ente-wasm --target bundler` — compiles the Rust source from `rust/bindings/wasm/ente-wasm/` into `packages/wasm/pkg/`
 - **Next.js base config**: `packages/base/next.config.base.js` — static export, Emotion, WASM support
 - **Lint**: `turbo lint tsc` runs eslint and tsc across workspaces (cached), then `prettier --check` runs separately
 - **Prettier**: tabWidth 4, `objectWrap: "collapse"` (locale JSON uses `"preserve"`), organize-imports plugin, packagejson plugin
 - **TypeScript**: strict mode, ES2020 target, bundler module resolution
 - **Transpiled packages**: `ente-base`, `ente-utils`, `ente-new`, `ente-wasm`
+
+### Self-host Docker image
+
+`web/Dockerfile` builds the `ghcr.io/ente-io/web` image (Node pinned to `24.15.0`, static output served by nginx). It bundles **10 apps**: `accounts`, `albums`, `auth`, `cast`, `embed`, `locker`, `memories`, `paste`, `photos`, `share`. It **excludes** `ensu`, `legacy`, `payments`, and `twoof3` — changes to those apps will not appear in the self-host image.
 
 ---
 

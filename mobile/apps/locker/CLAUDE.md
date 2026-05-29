@@ -2,8 +2,8 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-**Documented:** 2026-05-18
-**Commit:** a203b25e7e
+**Documented:** 2026-05-28
+**Commit:** 1f562071c4
 **Version:** 1.0.4+104
 
 ## Project Philosophy
@@ -114,6 +114,30 @@ flutter test test/services/info_file_service_test.dart  # Run specific test
 
 ## Architecture
 
+### Source Layout (`lib/`)
+
+```
+lib/
+├── main.dart         # Process entry: platform/Rust/service init, then runApp (see App Entry Point)
+├── app.dart          # The `App` root widget (MaterialApp, routes, lifecycle, startup prompts)
+├── core/             # constants.dart, errors.dart (typed errors), locale.dart
+├── events/           # App-local event classes (extend ente_events' Event)
+├── extensions/       # collection_extension.dart, user_extension.dart
+├── l10n/             # Generated localizations + the `context.l10n` extension (l10n.dart)
+├── models/           # Domain models + ChangeNotifier selection state + info-item models
+├── services/         # Singleton services (see Core Services)
+├── states/           # InheritedWidget-based shared UI state (user details)
+├── ui/               # Pages, settings, sharing, collections, components, viewer, mixins
+└── utils/            # Action helpers, file/icon utils, sort/list utils, crypto helper
+```
+
+### App Entry Point (`main.dart` + `app.dart`)
+
+App startup is split across two files:
+
+- **`main.dart`** — process bootstrap. In order: `registerCryptoApi(const EnteCryptoDartAdapter())`, desktop window/tray setup (`windowManager.ensureInitialized()` + `WindowListenerService` + `_initSystemTray()`), `SuperLogging`, Rust init via `_ensureRustInitialized()` (idempotent `EnteRust.init()`), then service init via `_init()`, then `runApp(...)` wrapped in `AppLock` (from `ente_lock_screen`). On Android it also enables high refresh rate and a transparent navigation bar.
+- **`app.dart`** — the `App` `StatefulWidget` (root). Owns the `MaterialApp`, the route table (`/` → `HomePage` if an account is configured, else `OnboardingPage`), and `WindowListener` / `TrayListener` / `WidgetsBindingObserver` mixins. On `AppLifecycleState.resumed` it calls `CollectionService.instance.sync()`. It listens for `SignedInEvent` / `SignedOutEvent` to refresh and (re)schedule `LockerContactsDisplayService`, and runs startup prompts: `showAppUpdateBottomSheet(...)` and `showChangeLogSheet(...)` gated by `UpdateService`. `App.setLocale(context, locale)` rebuilds with a new locale.
+
 ### Monorepo Structure
 
 Locker is one of three apps in `/apps/` (Photos, Auth, Locker) that share common packages from `/packages/`:
@@ -121,6 +145,7 @@ Locker is one of three apps in `/apps/` (Photos, Auth, Locker) that share common
 **Shared Packages:**
 - `ente_accounts` - User authentication and account management
 - `ente_base` - Base models, types, and `EnteBaseDatabase`
+- `ente_components` - Shared design-system components (e.g. `SettingsPageScaffold`, `ComponentTheme.configure`); used widely across settings and components
 - `ente_configuration` - App configuration (extended by local `services/configuration.dart`)
 - `ente_contacts` - Shared contacts client (wrapped locally by `LockerContactsDisplayService`)
 - `ente_crypto_api` - Abstract crypto interface (key derivation, encrypt/decrypt)
@@ -143,7 +168,7 @@ Locker is one of three apps in `/apps/` (Photos, Auth, Locker) that share common
 All major services follow the singleton pattern with `static final instance` getters unless noted. Grouped by area:
 
 **Configuration & Auth**
-1. **Configuration** (`lib/services/configuration.dart`) - Extends `BaseConfiguration` from `ente_configuration`; stores user settings, account info, and app state. Initialized with database instances and `SharedPreferences`.
+1. **Configuration** (`lib/services/configuration.dart`) - Extends `BaseConfiguration` from `ente_configuration` (no local overrides); stores user settings, account info, and app state. `init(List<EnteBaseDatabase> dbs)` is called as `init([LockerDB.instance])`.
 2. **UserService** (from `ente_accounts`) - Manages authentication and account details. Fires `SignedInEvent` / `SignedOutEvent` on the event bus.
 3. **LockScreenSettings** (from `ente_lock_screen`) - Biometric / PIN settings and privacy screen state.
 
@@ -182,14 +207,39 @@ Sync times are tracked per table to enable incremental syncing.
 
 ### Event-Driven Architecture
 
-The app uses an event bus (`ente_events` package) for cross-component communication:
+The app uses the `ente_events` event bus (`Bus.instance`) for cross-component communication. The event *classes* are defined locally in `lib/events/` (each extends `Event` from `ente_events`), except for the auth/account events which come from the `ente_events` package itself.
 
-**Key Events:**
-- `SignedInEvent` / `SignedOutEvent` - Authentication state changes
-- `CollectionsUpdatedEvent` - Triggers UI refresh when collections change
-- `BackupUpdatedEvent` - File upload progress/completion
+**App-local events (`lib/events/`):**
+- `CollectionsUpdatedEvent(source)` - Collections changed. **Requires a `String source` argument** (see Sync Pattern / Common Gotchas).
+- `BackupUpdatedEvent(items)` - File upload progress/completion; carries `LinkedHashMap<String, BackupItem>`.
+- `OpenedSettingsEvent()` - Fired when the settings screen opens (triggers a user-details refresh).
+- `UserDetailsRefreshEvent()` - Requests a fresh fetch of user details.
 
-**Pattern:** Services fire events, UI components listen and call `setState()`.
+**From the `ente_events` package:**
+- `SignedInEvent` / `SignedOutEvent` - Authentication state changes (fired by `UserService`).
+- `UserDetailsChangedEvent` - Cached user details changed.
+
+**Pattern:** Services fire events, UI components listen and call `setState()` (or, for user details, the `UserDetailsStateWidget` rebuilds — see State Management).
+
+### State Management
+
+There is no DI/state-management framework. Two lightweight patterns are used:
+
+- **`InheritedWidget` for user details** (`lib/states/user_details_state.dart`): `UserDetailsStateWidget` wraps the `HomePage` body (`home_page.dart:617`) and exposes the current `UserDetails` through the `InheritedUserDetails` inherited widget. Read it with `InheritedUserDetails.of(context)` (e.g. `lib/ui/components/usage_card_widget.dart`). It seeds from `UserService.getCachedUserDetails()` and refreshes on `OpenedSettingsEvent`, `UserDetailsChangedEvent`, and `UserDetailsRefreshEvent`.
+- **`ChangeNotifier` for selection** (`lib/models/`): `SelectedFiles` and `SelectedCollections` track multi-select state and `notifyListeners()` on change. `SelectedFiles` matches by `uploadedFileID`.
+
+### Models (`lib/models/`)
+
+- `info/info_item.dart` - `InfoItem` wrapper plus the `InfoType` enum (`note`, `physicalRecord`, `accountCredential`, `emergencyContact`) and `InfoData` subclasses (`PersonalNoteData`, `PhysicalRecordData`, `AccountCredentialData`, `EmergencyContactData`). Serialized to/from JSON via `toJsonString()` / `fromJsonString()`. The wire format uses the enum's camelCase `value`, but `InfoType.fromString` stays tolerant of older hyphenated forms (e.g. `physical-record`) so previously stored metadata still parses.
+- `selected_files.dart` / `selected_collections.dart` - `ChangeNotifier` selection models (see State Management).
+- `file_type.dart` - File type classification.
+- `ui_section_type.dart` - `UISectionType` enum (`homeCollections`, `incomingCollections`, `outgoingCollections`); drives `AllCollectionsPage.viewType`.
+
+### Core Module (`lib/core/`)
+
+- `constants.dart` - App-wide constants: default production endpoint (`https://api.ente.com`), mnemonic word count (24), `publicLinkDeviceLimits`, temp-dir cleanup interval, support email, GitHub discussions URL, etc.
+- `errors.dart` - Typed `Error` subclasses surfaced through services/UI: `UnauthorizedError`, `StorageLimitExceededError`, `NoActiveSubscriptionError`, `FileLimitReachedError`, `FileTooLargeForPlanError`, `WiFiUnavailableError`, `SharingNotPermittedForFreeAccountsError`, plus `InvalidFileError` (carries an `InvalidReason` enum) and passkey/SRP session errors.
+- `locale.dart` - Localization plumbing: `appSupportedLocales`, `getLocale()` / `setLocale()`, and `localResolutionCallBack` (used by both `main.dart` and `app.dart`).
 
 ### UI Structure
 
@@ -209,8 +259,10 @@ The app uses an event bus (`ente_events` package) for cross-component communicat
   - `PhysicalRecordsPage`
 
 **Settings (`lib/ui/settings/`):**
-- `SettingsPage` - Settings root.
-- Subpages in `lib/ui/settings/pages/`: `about_page.dart`, `account_settings_page.dart`, `general_settings_page.dart`, `security_settings_page.dart`, `settings_search_page.dart`, `support_page.dart`, `theme_settings_page.dart`.
+- `settings_page.dart` - Settings root; `language_selector_page.dart` - Locale picker.
+- `components/`: `settings_item.dart`, `settings_page_scaffold.dart` (shared scaffolds for settings subpages).
+- `pages/`: `about_page.dart`, `account_settings_page.dart`, `general_settings_page.dart`, `security_settings_page.dart`, `settings_search_page.dart`, `support_page.dart`, `theme_settings_page.dart`.
+- `widgets/`: `app_update_dialog.dart` (`showAppUpdateBottomSheet`), `app_version_widget.dart`, `change_log_sheet.dart` (`showChangeLogSheet`) + `change_log_strings.dart`, `social_icons_row.dart`.
 
 **Sharing UI (`lib/ui/sharing/`):**
 - `share_collection_bottom_sheet.dart` - Entry sheet for sharing a collection.
@@ -262,6 +314,7 @@ Helpers worth knowing about before adding new ones:
 - `collection_actions.dart`, `file_actions.dart` - Primary operation helpers used by pages (delete, move, restore, share, etc.).
 - `file_util.dart`, `file_icon_utils.dart` - File handling and icon resolution by MIME / extension.
 - `collection_sort_util.dart` - Collection sort orders.
+- `collection_list_util.dart` - List helpers, e.g. `uniqueCollectionsById` and uncategorized-collection filtering.
 - `info_item_utils.dart` - Metadata for structured info-item types (titles, icons, route mapping).
 - `crypto_helper.dart` - Key-derivation helpers (see Crypto & Encryption above).
 
@@ -272,8 +325,8 @@ Helpers worth knowing about before adding new ones:
 ### Platform-Specific Code
 
 **Desktop (Windows / Linux / macOS):**
-- Window management via `window_manager` and the locker-side `WindowListenerService`, both initialized in `main.dart` before `runApp()`.
-- System tray support via `tray_manager` (icon and context menu set up in `_initSystemTray()`).
+- Window management via `window_manager` and `WindowListenerService` (from `ente_ui`), both initialized in `main.dart` before `runApp()`. The tray icon and context menu are set up in `main.dart`'s `_initSystemTray()`.
+- The `App` state (`app.dart`) registers the `WindowListener` / `TrayListener` callbacks (resize persistence, tray click → show/hide, menu actions).
 
 **Mobile (iOS / Android):**
 - Share-intent handling via `listen_sharing_intent`.
@@ -283,10 +336,10 @@ Helpers worth knowing about before adding new ones:
 ### Localization
 
 - Uses Flutter's built-in `l10n` system.
-- Localization files in `lib/l10n/` - 26 locale `.arb` files.
-- Generated code via `flutter gen-l10n` (configured in `l10n.yaml`).
-- Shared strings from the `ente_strings` package.
-- Access in widgets via `context.l10n.keyName`.
+- Source strings in `lib/l10n/` - 26 `app_<locale>.arb` files; generated code via `flutter gen-l10n` (configured in `l10n.yaml`).
+- The `context.l10n` extension is defined in `lib/l10n/l10n.dart` (re-exports `app_localizations.dart`); access strings via `context.l10n.keyName`.
+- Locale selection/resolution (`appSupportedLocales`, `getLocale`/`setLocale`, `localResolutionCallBack`) lives in `lib/core/locale.dart`.
+- Shared strings come from the `ente_strings` package.
 
 ## Code Style & Linting
 
@@ -307,12 +360,12 @@ The project uses strict linting rules defined in `ente/mobile/analysis_options.y
 
 ### Service Initialization
 
-`main.dart` initializes services in a strict order (see `lib/main.dart:189-230`). The rule of thumb is that any `*ApiClient` / `*Client` service initializes before the higher-level service that wraps it.
+`main.dart` initializes services in a strict order inside `_init()` (see `lib/main.dart:177-225`). The rule of thumb is that any `*ApiClient` / `*Client` service initializes before the higher-level service that wraps it. Before `_init()` runs, `registerCryptoApi(const EnteCryptoDartAdapter())` and `EnteRust.init()` (via `_ensureRustInitialized()`) have already executed.
 
 ```
  1. CryptoUtil.init()
  2. LockerDB.instance.init()
- 3. Configuration.instance.init([preferences, packageInfo])
+ 3. Configuration.instance.init([LockerDB.instance])
  4. Network.instance.init(Configuration.instance)
  5. UserService.instance.init(...)
  6. LockScreenSettings.instance.init(Configuration.instance)
@@ -343,7 +396,8 @@ await _apiClient.someOperation(params);
 await CollectionService.instance.sync();
 
 // 3. Event bus notifies UI (optional, sync may fire it)
-Bus.instance.fire(CollectionsUpdatedEvent());
+// CollectionsUpdatedEvent requires a `source` string identifying the trigger.
+Bus.instance.fire(CollectionsUpdatedEvent("someOperation"));
 ```
 
 **Important:** Avoid calling `setState()` or manual reloads after operations that trigger `sync()` - the sync fires `CollectionsUpdatedEvent` which already refreshes the UI.
@@ -364,6 +418,7 @@ lib/services/collections/collections_service.dart:123
 5. **Sync timing:** File-upload operations should NOT manually call `_loadCollections()` in the callback to avoid duplicate UI refreshes (see `HomePage.onFileUploadComplete()`).
 6. **Two `ServiceLocator`s in the monorepo:** Locker's `ServiceLocator` lives at `lib/services/files/download/service_locator.dart` and is scoped to download/URL resolution. The Photos app has a separate, broader `service_locator.dart`. Don't confuse them when copying patterns across apps.
 7. **`LockerContactsDisplayService` is not a singleton:** Initialize via the static `LockerContactsDisplayService.init(...)` call; there is no `instance` getter.
+8. **Events are app-local and `CollectionsUpdatedEvent` needs a `source`:** Event classes live in `lib/events/` (not the `ente_events` package). `CollectionsUpdatedEvent(source)` takes a required `String source` argument — `CollectionsUpdatedEvent()` will not compile.
 
 ## Critical Coding Requirements
 
