@@ -1431,7 +1431,9 @@ const localeName = (locale: SupportedLocale) => {
         case "ca-ES":
             return "Català";
         case "zh-CN":
-            return "中文";
+            return "简体中文";
+        case "zh-TW":
+            return "繁體中文";
         case "nl-NL":
             return "Nederlands";
         case "es-ES":
@@ -1450,6 +1452,8 @@ const localeName = (locale: SupportedLocale) => {
             return "Lietuvių kalba";
         case "uk-UA":
             return "Українська";
+        case "ur-IN":
+            return "اردو";
         case "vi-VN":
             return "Tiếng Việt";
         case "ja-JP":
