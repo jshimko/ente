@@ -1,15 +1,3 @@
-# Node
-node_modules/
-
-# Turborepo
-.turbo/
-
-# macOS
-.DS_Store
-
-# Editors
-.vscode/
-
 # Local env files
 .env*.local
 
@@ -31,3 +19,6 @@ apps/ensu/next/
 
 # Generated wasm build
 packages/wasm/pkg/
+packages/wasm/target
+
+.turbo

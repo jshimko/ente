@@ -1,50 +1,17 @@
-# Let folks use their custom editor settings
-.vscode
-.idea
+# Editors
+.vscode/
+.idea/
 
 # macOS
 .DS_Store
 
-# Ignore CLAUDE.local.md files anywhere in the repository
-.claude/settings.local.json
+# Local assistant files
 CLAUDE.local.md
-
-# Local cargo config / per-dev exports
-.cargo/
-!rust/.cargo/
-!rust/.cargo/config.toml
-rust/apps/cli/exports/
 
 # Node
 node_modules/
 
-# Taskfile checksum cache
-.task/
-
-# Build artifacts
-target/
-
-# Generated native bindings / binaries (regenerate locally)
-mobile/native/android/apps/ensu/crypto-auth-core/src/main/jniLibs/
-mobile/native/android/apps/ensu/crypto-auth-core/src/main/java/io/ente/ensu/crypto/core_uniffi.kt
-mobile/native/android/apps/ensu/crypto-auth-core/src/main/java/io/ente/ensu/crypto/core.kt
-mobile/native/android/packages/rust/.gradle/
-mobile/native/android/packages/rust/src/main/jniLibs/
-mobile/native/android/packages/rust/src/main/kotlin/io/ente/labs/inference_rs/inference_rs_uniffi.kt
-mobile/native/android/packages/rust/src/main/kotlin/io/ente/labs/inference_rs/inference.kt
-mobile/native/android/packages/rust/src/main/kotlin/io/ente/labs/llmchat_db/llmchat_db_uniffi.kt
-mobile/native/android/packages/rust/src/main/kotlin/io/ente/labs/ensu_db/db.kt
-mobile/native/android/packages/rust/src/main/kotlin/io/ente/labs/llmchat_sync/llmchat_sync_uniffi.kt
-mobile/native/android/packages/rust/src/main/kotlin/io/ente/labs/ensu_sync/sync.kt
-mobile/native/darwin/Apps/ensu/ensu/Generated/*_uniffi*
-mobile/native/darwin/Apps/ensu/ensu/Generated/core*
-mobile/native/darwin/Apps/ensu/ensu/Generated/db*
-mobile/native/darwin/Apps/ensu/ensu/Generated/sync*
-mobile/native/darwin/Packages/Rust/InferenceRSFFI.xcframework/
-mobile/native/darwin/Packages/Rust/Sources/InferenceRS/inference_rs_uniffi*
-
-# Local ensu endpoint overrides (compile-time)
-mobile/native/darwin/Apps/ensu/ensu/Generated/EndpointConfig.swift
-
-# Tilt local dev (contains secrets)
+.task
+mobile/.fvm
+.claude/settings.local.json
 local-dev.yaml
