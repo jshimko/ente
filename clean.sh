@@ -162,6 +162,10 @@ clean_web() {
 
 clean_desktop() {
     info "Desktop (desktop/)"
+
+    # DMG that `task desktop:build` copies to the repo root (versioned filename)
+    rm_file "$REPO_ROOT"/ente-*.dmg
+
     local desk="$REPO_ROOT/desktop"
     [[ -d "$desk" ]] || return 0
 
@@ -194,7 +198,7 @@ clean_mobile() {
 
     # Root-level Flutter artifacts
     rm_file "$mob/.flutter-plugins" "$mob/.flutter-plugins-dependencies" "$mob/.packages"
-    rm_dir "$mob/.pub-cache" "$mob/.pub" "$mob/build"
+    rm_dir "$mob/.pub-cache" "$mob/.pub" "$mob/build" "$mob/.fvm" "$mob/.idea"
 
     # Per app
     for app in photos auth locker; do

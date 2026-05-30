@@ -431,6 +431,17 @@ tasks:
       - test -d app
     cmds:
       - npm run build
+      # Copy the built macOS installer (DMG) to the repo root for convenience.
+      # ROOT_DIR is the directory of the root Taskfile (the repo root); the
+      # original stays under dist/. The filename includes the version, so glob
+      # it. The guard keeps `task build` working on non-macOS platforms, where
+      # the build produces an AppImage/exe instead of a DMG.
+      - |
+        for f in dist/ente-*-universal.dmg; do
+          [ -e "$f" ] || continue
+          cp "$f" "{{.ROOT_DIR}}/"
+          echo "DMG -> {{.ROOT_DIR}}/$(basename "$f")"
+        done
 
   desktop:lint:
     desc: Lint desktop code
