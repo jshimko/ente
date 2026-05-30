@@ -69,9 +69,13 @@ tasks:
     # Turbo-driven (`turbo build --filter=ente-wasm`); caching deferred to Turbo.
     # The real Rust source lives in rust/bindings/wasm/ente-wasm/ (+ workspace
     # deps), which Turbo's task inputs track — not go-task globs.
+    # wasm-pack is a LOCAL devDependency (web/packages/wasm), installed by
+    # web:install and resolved via node_modules/.bin — so we don't guard the
+    # global PATH for it. The real external requirement is the Rust toolchain it
+    # shells out to.
     preconditions:
-      - sh: command -v wasm-pack
-        msg: "wasm-pack is required — install via cargo install wasm-pack"
+      - sh: command -v cargo
+        msg: "cargo is required (wasm-pack compiles Rust) — install from https://rustup.rs"
     cmds:
       - yarn build:wasm
 
