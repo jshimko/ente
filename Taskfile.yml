@@ -347,11 +347,17 @@ tasks:
     desc: "Build release APK for sideloading [task mobile:apk -- https://your-server.example.com]"
     dir: mobile/apps/photos
     deps: [mobile:submodules, mobile:codegen]
-    # The Android Gradle build requires a JDK 17 toolchain Gradle can discover
-    # (a transitive plugin pins languageVersion=17). A newer/older default JDK
-    # (e.g. 21/26) won't satisfy the strict toolchain match — install a JDK 17
-    # (e.g. `brew install --cask zulu@17`) and point JAVA_HOME at it, or add the
-    # Foojay toolchain resolver to android/settings.gradle so Gradle downloads it.
+    # Prerequisites for this RELEASE build (see docs/self-hosting/development/
+    # mobile-build.md):
+    #  1. JDK 17 toolchain Gradle can discover (a transitive plugin pins
+    #     languageVersion=17; a newer/older default JDK like 21/26 won't match).
+    #     Install one (e.g. `brew install --cask zulu@17`) and point JAVA_HOME at
+    #     it, or add the Foojay resolver to android/settings.gradle to auto-download.
+    #  2. A signing keystore — a `--release` build is signed. Provide it via
+    #     mobile/apps/photos/android/key.properties (storeFile/storePassword/
+    #     keyAlias/keyPassword) or the SIGNING_KEY_PATH / SIGNING_KEY_ALIAS /
+    #     SIGNING_KEY_PASSWORD / SIGNING_STORE_PASSWORD env vars. Generate one with
+    #     keytool (see https://docs.flutter.dev/deployment/android#create-an-upload-keystore).
     vars:
       ENDPOINT_FLAG: "{{if .CLI_ARGS}}--dart-define=endpoint={{.CLI_ARGS}}{{end}}"
     preconditions:
