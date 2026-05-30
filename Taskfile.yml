@@ -335,6 +335,8 @@ tasks:
         msg: "melos is required — install via dart pub global activate melos"
     cmds:
       - melos run clean:all
+      # Also remove the APK that mobile:apk copies to the repo root.
+      - rm -f "{{.ROOT_DIR}}/app-independent-release.apk"
 
   mobile:submodules:
     desc: Initialize git submodules (one-time setup)

@@ -185,6 +185,10 @@ clean_desktop() {
 
 clean_mobile() {
     info "Mobile (mobile/)"
+
+    # APK that `task mobile:apk` copies to the repo root
+    rm_file "$REPO_ROOT/app-independent-release.apk"
+
     local mob="$REPO_ROOT/mobile"
     [[ -d "$mob" ]] || return 0
 
