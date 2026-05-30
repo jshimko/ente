@@ -28,11 +28,7 @@ class FileDataEntity {
   final Map<String, dynamic> remoteRawData;
   final DataType type;
 
-  FileDataEntity(
-    this.fileID,
-    this.remoteRawData,
-    this.type,
-  );
+  FileDataEntity(this.fileID, this.remoteRawData, this.type);
 
   void validate() {
     if (type == DataType.mlData) {
@@ -52,11 +48,7 @@ class FileDataEntity {
     String type,
     Map<String, dynamic> json,
   ) {
-    return FileDataEntity(
-      fileID,
-      json,
-      DataType.fromString(type),
-    );
+    return FileDataEntity(fileID, json, DataType.fromString(type));
   }
 
   static FileDataEntity empty(int fileID, DataType type) {
@@ -80,14 +72,13 @@ class FileDataEntity {
         )
       : null;
 
-  RemoteClipEmbedding? getClipEmbeddingIfCompatible(
-    int minClipMlVersion,
-  ) {
+  RemoteClipEmbedding? getClipEmbeddingIfCompatible(int minClipMlVersion) {
     final clipData = remoteRawData[_clipKey];
     if (clipData == null) return null;
 
-    final clipEmbedding =
-        RemoteClipEmbedding.fromJson(clipData as Map<String, dynamic>);
+    final clipEmbedding = RemoteClipEmbedding.fromJson(
+      clipData as Map<String, dynamic>,
+    );
     return clipEmbedding.version >= minClipMlVersion ? clipEmbedding : null;
   }
 }
@@ -101,22 +92,29 @@ class RemoteFaceEmbedding {
   final int height;
   final int width;
 
+  /// Bitmask describing properties of this index (e.g. which runtime produced
+  /// it). Bits are defined in `ml_versions.dart`. Absent on the wire => 0
+  /// (legacy).
+  final int flags;
+
   RemoteFaceEmbedding(
     this.faces,
     this.version, {
     required this.client,
     required this.height,
     required this.width,
+    this.flags = 0,
   });
 
   // toJson
   Map<String, dynamic> toJson() => {
-        'faces': faces.map((x) => x.toJson()).toList(),
-        'version': version,
-        'client': client,
-        'height': height,
-        'width': width,
-      };
+    'faces': faces.map((x) => x.toJson()).toList(),
+    'version': version,
+    'client': client,
+    'height': height,
+    'width': width,
+    if (flags != 0) 'flags': flags,
+  };
 
   // fromJson
   factory RemoteFaceEmbedding.fromJson(Map<String, dynamic> json) {
@@ -128,6 +126,7 @@ class RemoteFaceEmbedding {
       client: json['client'] as String,
       height: json['height'] as int,
       width: json['width'] as int,
+      flags: (json['flags'] as int?) ?? 0,
     );
   }
 }
@@ -137,18 +136,25 @@ class RemoteClipEmbedding {
   final String client;
   final List<double> embedding;
 
+  /// Bitmask describing properties of this index (e.g. which runtime produced
+  /// it). Bits are defined in `ml_versions.dart`. Absent on the wire => 0
+  /// (legacy).
+  final int flags;
+
   RemoteClipEmbedding(
     this.embedding, {
     required this.version,
     required this.client,
+    this.flags = 0,
   });
 
   // toJson
   Map<String, dynamic> toJson() => {
-        'embedding': embedding,
-        'version': version,
-        'client': client,
-      };
+    'embedding': embedding,
+    'version': version,
+    'client': client,
+    if (flags != 0) 'flags': flags,
+  };
 
   // fromJson
   factory RemoteClipEmbedding.fromJson(Map<String, dynamic> json) {
@@ -156,6 +162,7 @@ class RemoteClipEmbedding {
       parseAsDoubleList(json['embedding'] as List),
       version: json['version'] as int,
       client: json['client'] as String,
+      flags: (json['flags'] as int?) ?? 0,
     );
   }
 }
@@ -199,9 +206,5 @@ class PreviewInfo {
   final String objectId;
   final int objectSize;
   String? nonce;
-  PreviewInfo({
-    required this.objectId,
-    required this.objectSize,
-    this.nonce,
-  });
+  PreviewInfo({required this.objectId, required this.objectSize, this.nonce});
 }

@@ -159,6 +159,9 @@ func (c *BillingController) GetActiveSubscription(userID int64) (ente.Subscripti
 
 // HasActiveSelfOrFamilySubscription validates if the user or user's family admin has active subscription
 func (c *BillingController) HasActiveSelfOrFamilySubscription(userID int64, mustBeOnPaidPlan bool) error {
+	if viper.GetBool("internal.is-self-hosted") {
+		return nil
+	}
 	var subscriptionUserID int64
 	familyAdminID, err := c.UserRepo.GetFamilyAdminID(userID)
 	if err != nil {

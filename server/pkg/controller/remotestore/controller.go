@@ -105,8 +105,10 @@ func (c *Controller) GetFeatureFlags(ctx *gin.Context) (*ente.FeatureFlagRespons
 	if err != nil {
 		return nil, stacktrace.Propagate(err, "")
 	}
+	isSelfHosted := viper.GetBool("internal.is-self-hosted")
 	response := &ente.FeatureFlagResponse{
-		EnableStripe:    true, // enable stripe for all
+		EnableStripe:    !isSelfHosted,
+		IsSelfHosted:    isSelfHosted,
 		DisableCFWorker: false,
 		// When true, users will see an option to enable multiple part upload in the app
 		// Changing it to false will hide the option and disable multi part upload for everyone

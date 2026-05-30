@@ -284,7 +284,7 @@ const attachProcessHandlers = () => {
     // Gracefully quit the app if we get a SIGINT.
     //
     // This is meant to allow graceful shutdowns during development, when the
-    // app is launched using `yarn dev`. In such cases, pressing CTRL-C sends a
+    // app is launched using `npm run dev`. In such cases, pressing CTRL-C sends a
     // SIGINT to the process. The default handling of SIGINT is not graceful
     // enough (apparently), since I can observe that sometimes recent writes to
     // local storage are lost. This has also been reported by other people:
@@ -416,22 +416,16 @@ const createMainWindow = () => {
     window.on("close", (event) => {
         if (!shouldAllowWindowClose) {
             event.preventDefault();
+            // Only hide the dock icon when we are intercepting an explicit
+            // close action. On macOS, the generic "hide" event is also emitted
+            // for occlusion changes, so reacting there causes the dock icon to
+            // disappear when the window is fully covered by another window.
+            if (shouldHideDockIcon()) {
+                app.dock?.hide();
+            }
             window.hide();
         }
         return false;
-    });
-
-    window.on("hide", () => {
-        // On macOS, when hiding the window also hide the app's icon in the dock
-        // unless the user has unchecked the Settings > Hide dock icon checkbox.
-        if (shouldHideDockIcon()) {
-            // macOS emits a window "hide" event when going fullscreen, and if
-            // we hide the dock icon there then the window disappears. So ignore
-            // this scenario.
-            if (!window.isFullScreen()) {
-                app.dock?.hide();
-            }
-        }
     });
 
     window.on("show", () => void app.dock?.show());

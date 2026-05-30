@@ -1,14 +1,14 @@
 name: "Lint (auth)"
 
 on:
-    # Run on every pull request (open or push to it) that changes auth app
     pull_request:
         paths:
-            - "mobile/apps/auth/**"
             - ".github/workflows/auth-lint.yml"
+            - "mobile/apps/auth/**"
+            - "mobile/scripts/check_source_arb_plurals.rb"
 
 env:
-    FLUTTER_VERSION: "3.32.8"
+    FLUTTER_VERSION: "3.38.10"
 
 permissions:
     contents: read
@@ -21,12 +21,16 @@ jobs:
                 working-directory: mobile/apps/auth
         steps:
             - name: Checkout code and submodules
-              uses: actions/checkout@v4
+              uses: actions/checkout@v6
               with:
                   submodules: recursive
 
             - name: Verify frozen mobile pubspecs
               run: ruby mobile/scripts/check_frozen_pubspecs.rb mobile/apps/auth
+              working-directory: ${{ github.workspace }}
+
+            - name: Verify source ARB plurals
+              run: ruby mobile/scripts/check_source_arb_plurals.rb
               working-directory: ${{ github.workspace }}
 
             - name: Verify custom icons are lowercase including optional understores, and end with .svg
@@ -78,4 +82,11 @@ jobs:
 
             - run: flutter pub get --enforce-lockfile
 
+            - name: Generate auth localizations
+              run: flutter gen-l10n
+
+            - run: dart format --output=none --set-exit-if-changed .
+
             - run: flutter analyze --no-fatal-infos
+
+            - run: flutter test

@@ -2,6 +2,12 @@
     "name": "locker",
     "version": "0.0.0",
     "private": true,
+    "scripts": {
+        "build": "next build --no-lint",
+        "dev": "next dev -p 3009",
+        "lint": "eslint .",
+        "tsc": "tsc --noEmit"
+    },
     "dependencies": {
         "@hugeicons/core-free-icons": "^1.1.0",
         "@hugeicons/react": "^1.1.4",

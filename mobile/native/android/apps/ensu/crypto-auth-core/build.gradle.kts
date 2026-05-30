@@ -11,8 +11,6 @@ android {
         minSdk = 24
     }
 
-    sourceSets["main"].jniLibs.srcDir("src/main/jniLibs")
-
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -25,5 +23,5 @@ android {
 
 dependencies {
     implementation(project(":domain"))
-    implementation("net.java.dev.jna:jna:5.14.0@aar")
+    implementation("net.java.dev.jna:jna:5.18.1@aar")
 }

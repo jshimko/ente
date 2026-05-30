@@ -5,6 +5,7 @@ import "package:photos/models/memories/smart_memory.dart";
 
 class TripMemory extends SmartMemory {
   final Location location;
+  final String? tripKey;
 
   // Stuff for the title
   String? locationName;
@@ -15,17 +16,20 @@ class TripMemory extends SmartMemory {
     int firstDateToShow,
     int lastDateToShow,
     this.location, {
+    String? id,
     this.locationName,
     this.tripYear,
+    this.tripKey,
     super.firstCreationTime,
     super.lastCreationTime,
   }) : super(
-          memories,
-          MemoryType.trips,
-          '',
-          firstDateToShow,
-          lastDateToShow,
-        );
+         memories,
+         MemoryType.trips,
+         '',
+         firstDateToShow,
+         lastDateToShow,
+         id: id,
+       );
 
   TripMemory copyWith({
     List<Memory>? memories,
@@ -33,14 +37,17 @@ class TripMemory extends SmartMemory {
     int? lastDateToShow,
     String? locationName,
     int? tripYear,
+    String? tripKey,
   }) {
     return TripMemory(
       memories ?? this.memories,
       firstDateToShow ?? this.firstDateToShow,
       lastDateToShow ?? this.lastDateToShow,
       location,
+      id: id,
       locationName: locationName ?? this.locationName,
       tripYear: tripYear ?? this.tripYear,
+      tripKey: tripKey ?? this.tripKey,
       firstCreationTime: firstCreationTime,
       lastCreationTime: lastCreationTime,
     );

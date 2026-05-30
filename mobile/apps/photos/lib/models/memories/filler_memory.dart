@@ -10,15 +10,17 @@ class FillerMemory extends SmartMemory {
     this.yearsAgo,
     int firstDateToShow,
     int lastDateToShow, {
+    String? id,
     super.firstCreationTime,
     super.lastCreationTime,
   }) : super(
-          memories,
-          MemoryType.filler,
-          'filler',
-          firstDateToShow,
-          lastDateToShow,
-        );
+         memories,
+         MemoryType.filler,
+         'filler',
+         firstDateToShow,
+         lastDateToShow,
+         id: id,
+       );
 
   @override
   String createTitle(AppLocalizations locals, String languageCode) {

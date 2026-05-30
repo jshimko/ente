@@ -1,10 +1,10 @@
-name: ente_qr
+name: ente_auth_qr
 description: "A QR code reader plugin for Ente."
 version: 0.0.1
 homepage: https://ente.com
 
 environment:
-  sdk: '>=3.4.3 <4.0.0'
+  sdk: ">=3.10.0 <4.0.0"
   flutter: '>=3.3.0'
 
 dependencies:
@@ -23,7 +23,7 @@ flutter:
   plugin:
     platforms:
       android:
-        package: io.ente.auth.ente_qr
+        package: io.ente.auth.ente_auth_qr
         pluginClass: EnteQrPlugin
       ios:
         pluginClass: EnteQrPlugin

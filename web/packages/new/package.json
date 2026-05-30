@@ -2,6 +2,10 @@
     "name": "ente-new",
     "version": "0.0.0",
     "private": true,
+    "scripts": {
+        "lint": "eslint .",
+        "tsc": "tsc --noEmit"
+    },
     "dependencies": {
         "@hugeicons/core-free-icons": "^1.0.5",
         "@hugeicons/react": "^1.0.5",

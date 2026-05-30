@@ -10,21 +10,16 @@ import 'package:photos/ui/viewer/gallery/archive_page.dart';
 class ArchivedCollectionsButton extends StatelessWidget {
   final TextStyle textStyle;
 
-  const ArchivedCollectionsButton(
-    this.textStyle, {
-    super.key,
-  });
+  const ArchivedCollectionsButton(this.textStyle, {super.key});
 
   @override
   Widget build(BuildContext context) {
-    final Set<int> hiddenCollectionId =
-        CollectionsService.instance.getHiddenCollectionIds();
+    final Set<int> hiddenCollectionId = CollectionsService.instance
+        .getHiddenCollectionIds();
     return OutlinedButton(
       style: OutlinedButton.styleFrom(
         backgroundColor: Theme.of(context).colorScheme.surface,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         padding: const EdgeInsets.all(0),
         side: BorderSide(
           width: 0.5,
@@ -59,13 +54,13 @@ class ArchivedCollectionsButton extends StatelessWidget {
                             style: textStyle,
                             children: [
                               TextSpan(
-                                text: AppLocalizations.of(context).archive,
+                                text: AppLocalizations.of(
+                                  context,
+                                ).archiveCollectionName,
                                 style: Theme.of(context).textTheme.titleMedium,
                               ),
                               const TextSpan(text: "  \u2022  "),
-                              TextSpan(
-                                text: snapshot.data.toString(),
-                              ),
+                              TextSpan(text: snapshot.data.toString()),
                               //need to query in db and bring this value
                             ],
                           ),
@@ -76,7 +71,9 @@ class ArchivedCollectionsButton extends StatelessWidget {
                             style: textStyle,
                             children: [
                               TextSpan(
-                                text: AppLocalizations.of(context).archive,
+                                text: AppLocalizations.of(
+                                  context,
+                                ).archiveCollectionName,
                                 style: Theme.of(context).textTheme.titleMedium,
                               ),
                               //need to query in db and bring this value
@@ -98,10 +95,7 @@ class ArchivedCollectionsButton extends StatelessWidget {
       ),
       onPressed: () async {
         // ignore: unawaited_futures
-        routeToPage(
-          context,
-          ArchivePage(),
-        );
+        routeToPage(context, ArchivePage());
       },
     );
   }

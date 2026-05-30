@@ -1,0 +1,55 @@
+{
+    "$schema": "https://turbo.build/schema.json",
+    "tasks": {
+        "build": {
+            "dependsOn": ["^build"],
+            "inputs": [
+                "$TURBO_DEFAULT$",
+                "!.turbo/**",
+                "!.next/**",
+                "!out/**",
+                "!dist/**"
+            ],
+            "outputs": ["out/**", "dist/**", "pkg/**"],
+            "cache": true
+        },
+        "build:post": { "dependsOn": ["build"], "outputs": [], "cache": false },
+        "lint": {
+            "dependsOn": ["^build"],
+            "inputs": [
+                "$TURBO_DEFAULT$",
+                "!.turbo/**",
+                "!.next/**",
+                "!out/**",
+                "!dist/**"
+            ],
+            "outputs": [],
+            "cache": true
+        },
+        "tsc": {
+            "dependsOn": ["^build"],
+            "inputs": [
+                "$TURBO_DEFAULT$",
+                "!.turbo/**",
+                "!.next/**",
+                "!out/**",
+                "!dist/**"
+            ],
+            "outputs": [],
+            "cache": true
+        },
+        "test": {
+            "dependsOn": ["build"],
+            "inputs": [
+                "$TURBO_DEFAULT$",
+                "!.turbo/**",
+                "!.next/**",
+                "!out/**",
+                "!dist/**"
+            ],
+            "outputs": [],
+            "cache": true
+        },
+        "dev": { "dependsOn": ["^build"], "persistent": true, "cache": false }
+    }
+}

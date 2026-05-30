@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 
+import 'package:ente_components/ente_components.dart';
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
 import 'package:photo_manager/photo_manager.dart';
@@ -15,6 +16,7 @@ import 'package:photos/events/local_photos_updated_event.dart';
 import 'package:photos/gateways/trash/models/trash_item_request.dart';
 import "package:photos/generated/l10n.dart";
 import "package:photos/l10n/l10n.dart";
+import "package:photos/models/button_result.dart";
 import 'package:photos/models/file/file.dart';
 import "package:photos/models/files_split.dart";
 import "package:photos/models/freeable_space_info.dart";
@@ -25,9 +27,8 @@ import "package:photos/services/sync/local_sync_service.dart";
 import 'package:photos/services/sync/remote_sync_service.dart';
 import 'package:photos/services/sync/sync_service.dart';
 import 'package:photos/ui/common/linear_progress_dialog.dart';
-import 'package:photos/ui/components/action_sheet_widget.dart';
-import 'package:photos/ui/components/buttons/button_widget.dart';
-import 'package:photos/ui/components/models/button_type.dart';
+import 'package:photos/ui/components/buttons/button_widget.dart'
+    show ButtonAction;
 import 'package:photos/ui/notification/toast.dart';
 import "package:photos/utils/device_info.dart";
 import 'package:photos/utils/dialog_util.dart';
@@ -59,7 +60,7 @@ Future<void> deleteFilesFromEverywhere(
       hasLocalOnlyFiles = true;
     }
   }
-  if (hasLocalOnlyFiles && Platform.isAndroid && !isOfflineMode) {
+  if (hasLocalOnlyFiles && Platform.isAndroid && !isLocalGalleryMode) {
     final shouldProceed = await shouldProceedWithDeletion(context);
     if (!shouldProceed) {
       return;
@@ -67,8 +68,9 @@ Future<void> deleteFilesFromEverywhere(
   }
   Set<String> deletedIDs = <String>{};
   try {
-    deletedIDs =
-        (await PhotoManager.editor.deleteWithIds(localAssetIDs)).toSet();
+    deletedIDs = (await PhotoManager.editor.deleteWithIds(
+      localAssetIDs,
+    )).toSet();
   } catch (e, s) {
     _logger.severe("Could not delete file", e, s);
   }
@@ -83,8 +85,9 @@ Future<void> deleteFilesFromEverywhere(
           alreadyDeletedIDs.contains(file.localID)) {
         deletedFiles.add(file);
         if (file.uploadedFileID != null) {
-          uploadedFilesToBeTrashed
-              .add(TrashRequest(file.uploadedFileID!, file.collectionID!));
+          uploadedFilesToBeTrashed.add(
+            TrashRequest(file.uploadedFileID!, file.collectionID!),
+          );
           updatedCollectionIDs.add(file.collectionID!);
         } else {
           await FilesDB.instance.deleteLocalFile(file);
@@ -93,14 +96,16 @@ Future<void> deleteFilesFromEverywhere(
     } else {
       updatedCollectionIDs.add(file.collectionID!);
       deletedFiles.add(file);
-      uploadedFilesToBeTrashed
-          .add(TrashRequest(file.uploadedFileID!, file.collectionID!));
+      uploadedFilesToBeTrashed.add(
+        TrashRequest(file.uploadedFileID!, file.collectionID!),
+      );
     }
   }
   if (uploadedFilesToBeTrashed.isNotEmpty) {
     try {
-      final fileIDs =
-          uploadedFilesToBeTrashed.map((item) => item.fileID).toList();
+      final fileIDs = uploadedFilesToBeTrashed
+          .map((item) => item.fileID)
+          .toList();
       await trashSyncService.trashFilesOnServer(uploadedFilesToBeTrashed);
       await FilesDB.instance.deleteMultipleUploadedFiles(fileIDs);
     } catch (e) {
@@ -193,7 +198,7 @@ Future<void> deleteFilesFromRemoteOnly(
   RemoteSyncService.instance.sync(silently: true);
 }
 
-Future<void> deleteFilesOnDeviceOnly(
+Future<List<EnteFile>> deleteFilesOnDeviceOnly(
   BuildContext context,
   List<EnteFile> files,
 ) async {
@@ -219,16 +224,17 @@ Future<void> deleteFilesOnDeviceOnly(
       localOnlyIDs.add(file.localID);
     }
   }
-  if (hasLocalOnlyFiles && Platform.isAndroid && !isOfflineMode) {
+  if (hasLocalOnlyFiles && Platform.isAndroid && !isLocalGalleryMode) {
     final shouldProceed = await shouldProceedWithDeletion(context);
     if (!shouldProceed) {
-      return;
+      return const [];
     }
   }
   Set<String> deletedIDs = <String>{};
   try {
-    deletedIDs =
-        (await PhotoManager.editor.deleteWithIds(localAssetIDs)).toSet();
+    deletedIDs = (await PhotoManager.editor.deleteWithIds(
+      localAssetIDs,
+    )).toSet();
   } catch (e, s) {
     _logger.severe("Could not delete file", e, s);
   }
@@ -256,6 +262,7 @@ Future<void> deleteFilesOnDeviceOnly(
       ),
     );
   }
+  return deletedFiles;
 }
 
 Future<bool> deleteFromTrash(BuildContext context, List<EnteFile> files) async {
@@ -340,8 +347,13 @@ Future<bool> deleteLocalFiles(
   final List<String> localAssetIDs = [];
   final List<String> localSharedMediaIDs = [];
 
-  const largeCountThreshold = 20000;
-  final tooManyAssets = localIDs.length > largeCountThreshold;
+  // Keep large platform asset deletes in smaller batches. Shared-media sandbox
+  // IDs are deleted separately above, and only platform asset IDs are sent to
+  // PhotoManager.editor.deleteWithIds. Android 11+ routes those IDs through
+  // MediaStore.createDeleteRequest, where our target SDK has a 2000 URI cap:
+  // https://developer.android.com/reference/android/provider/MediaStore#createDeleteRequest(android.content.ContentResolver,%20java.util.Collection%3Candroid.net.Uri%3E)
+  // Smaller batches are also safer for large iOS Photos deletes.
+  const largeCountThreshold = 1900;
   try {
     for (String id in localIDs) {
       if (id.startsWith(sharedMediaIdentifier)) {
@@ -352,28 +364,31 @@ Future<bool> deleteLocalFiles(
     }
     deletedIDs.addAll(await _tryDeleteSharedMediaFiles(localSharedMediaIDs));
 
+    final tooManyAssets = localAssetIDs.length > largeCountThreshold;
     final bool shouldDeleteInBatches =
         await isAndroidSDKVersionLowerThan(android11SDKINT) || tooManyAssets;
     if (shouldDeleteInBatches) {
       if (tooManyAssets) {
         _logger.info(
-          "Too many assets (${localIDs.length}) to delete in one shot, deleting in batches",
+          "Too many assets (${localAssetIDs.length}) to delete in one shot, deleting in batches",
         );
         await _recursivelyReduceBatchSizeAndRetryDeletion(
           batchSize: largeCountThreshold,
           context: context,
-          localIDs: localIDs,
+          localIDs: localAssetIDs,
           deletedIDs: deletedIDs,
         );
       } else {
         _logger.info("Deleting in batches");
-        deletedIDs
-            .addAll(await deleteLocalFilesInBatches(context, localAssetIDs));
+        deletedIDs.addAll(
+          await deleteLocalFilesInBatches(context, localAssetIDs),
+        );
       }
     } else {
       _logger.info("Deleting in one shot");
-      deletedIDs
-          .addAll(await _deleteLocalFilesInOneShot(context, localAssetIDs));
+      deletedIDs.addAll(
+        await _deleteLocalFilesInOneShot(context, localAssetIDs),
+      );
     }
     if (deletedIDs.isEmpty && Platform.isIOS) {
       _logger.warning(
@@ -420,8 +435,10 @@ Future<bool> deleteLocalFilesAfterRemovingAlreadyDeletedIDs(
   final dialog = createProgressDialog(context, "Loading...");
   await dialog.show();
   try {
-    final files =
-        await FilesDB.instance.getLocalFiles(localIDs, dedupeByLocalID: true);
+    final files = await FilesDB.instance.getLocalFiles(
+      localIDs,
+      dedupeByLocalID: true,
+    );
     for (final file in files) {
       if (!(await _localFileExist(file))) {
         _logger.warning("Already deleted ${file.tag}");
@@ -437,16 +454,19 @@ Future<bool> deleteLocalFilesAfterRemovingAlreadyDeletedIDs(
 
     await dialog.hide();
 
-    final bool shouldDeleteInBatches =
-        await isAndroidSDKVersionLowerThan(android11SDKINT);
+    final bool shouldDeleteInBatches = await isAndroidSDKVersionLowerThan(
+      android11SDKINT,
+    );
     if (shouldDeleteInBatches) {
       _logger.info("Deleting in batches");
-      deletedIDs
-          .addAll(await deleteLocalFilesInBatches(context, localAssetIDs));
+      deletedIDs.addAll(
+        await deleteLocalFilesInBatches(context, localAssetIDs),
+      );
     } else {
       _logger.info("Deleting in one shot");
-      deletedIDs
-          .addAll(await _deleteLocalFilesInOneShot(context, localAssetIDs));
+      deletedIDs.addAll(
+        await _deleteLocalFilesInOneShot(context, localAssetIDs),
+      );
     }
 
     if (deletedIDs.isEmpty && Platform.isIOS) {
@@ -487,8 +507,10 @@ Future<bool> retryFreeUpSpaceAfterRemovingAssetsNonExistingInDisk(
     "Retrying free up space after removing assets non-existing in disk",
   );
 
-  final dialog =
-      createProgressDialog(context, context.l10n.pleaseWaitThisWillTakeAWhile);
+  final dialog = createProgressDialog(
+    context,
+    context.l10n.pleaseWaitThisWillTakeAWhile,
+  );
   await dialog.show();
   try {
     final stopwatch = Stopwatch()..start();
@@ -518,16 +540,19 @@ Future<bool> retryFreeUpSpaceAfterRemovingAssetsNonExistingInDisk(
 
     await dialog.hide();
 
-    final bool shouldDeleteInBatches =
-        await isAndroidSDKVersionLowerThan(android11SDKINT);
+    final bool shouldDeleteInBatches = await isAndroidSDKVersionLowerThan(
+      android11SDKINT,
+    );
     if (shouldDeleteInBatches) {
       _logger.info("Deleting in batches");
-      deletedIDs
-          .addAll(await deleteLocalFilesInBatches(context, localAssetIDs));
+      deletedIDs.addAll(
+        await deleteLocalFilesInBatches(context, localAssetIDs),
+      );
     } else {
       _logger.info("Deleting in one shot");
-      deletedIDs
-          .addAll(await _deleteLocalFilesInOneShot(context, localAssetIDs));
+      deletedIDs.addAll(
+        await _deleteLocalFilesInOneShot(context, localAssetIDs),
+      );
     }
 
     if (deletedIDs.isNotEmpty) {
@@ -639,8 +664,10 @@ Future<void> _recursivelyReduceBatchSizeAndRetryDeletion({
   required BuildContext context,
   required List<String> localIDs,
   required List<String> deletedIDs,
-  int minimumBatchSizeThresholdToStopRetry = 2000,
+  int minimumBatchSizeThresholdToStopRetry = 1900,
 }) async {
+  // TODO: Revisit whether this recursive retry is still needed. The batch
+  // helper already falls back to single-ID deletes when a batch fails.
   if (batchSize < minimumBatchSizeThresholdToStopRetry) {
     _logger.warning(
       "Batch size is too small ($batchSize), stopping further retries.",
@@ -730,14 +757,36 @@ Future<bool> shouldProceedWithDeletion(BuildContext context) async {
 Future<void> showDeleteSheet(
   BuildContext context,
   SelectedFiles selectedFiles,
-  FilesSplit filesSplit,
-) async {
+  FilesSplit filesSplit, {
+  @visibleForTesting
+  Future<void> Function(BuildContext context, List<EnteFile> files)?
+  deleteFromRemoteOnlyOverride,
+  @visibleForTesting
+  Future<void> Function(BuildContext context, List<EnteFile> files)?
+  deleteOnDeviceOnlyOverride,
+  @visibleForTesting
+  Future<void> Function(BuildContext context, List<EnteFile> files)?
+  deleteFromEverywhereOverride,
+}) async {
   if (selectedFiles.files.length != filesSplit.count) {
-    throw AssertionError("Unexpected state, #{selectedFiles.files.length} != "
-        "${filesSplit.count}");
+    throw AssertionError(
+      "Unexpected state, #{selectedFiles.files.length} != "
+      "${filesSplit.count}",
+    );
   }
   final List<EnteFile> deletableFiles =
       filesSplit.ownedByCurrentUser + filesSplit.pendingUploads;
+  final Future<void> Function(BuildContext context, List<EnteFile> files)
+  deleteFromRemoteOnlyAction =
+      deleteFromRemoteOnlyOverride ?? deleteFilesFromRemoteOnly;
+  final Future<void> Function(BuildContext context, List<EnteFile> files)
+  deleteOnDeviceOnlyAction =
+      deleteOnDeviceOnlyOverride ??
+      (context, files) async => deleteFilesOnDeviceOnly(context, files);
+  final Future<void> Function(BuildContext context, List<EnteFile> files)
+  deleteFromEverywhereAction =
+      deleteFromEverywhereOverride ?? deleteFilesFromEverywhere;
+
   if (deletableFiles.isEmpty && filesSplit.ownedByOtherUsers.isNotEmpty) {
     showShortToast(
       context,
@@ -745,128 +794,95 @@ Future<void> showDeleteSheet(
     );
     return;
   }
-  if (isOfflineMode) {
-    final offlineDeletableFiles =
-        deletableFiles.where((file) => file.localID != null).toList();
-    if (offlineDeletableFiles.isEmpty) {
+  if (isLocalGalleryMode) {
+    final localGalleryDeletableFiles = deletableFiles
+        .where((file) => file.localID != null)
+        .toList();
+    if (localGalleryDeletableFiles.isEmpty) {
       showShortToast(
         context,
         AppLocalizations.of(context).noDeviceThatCanBeDeleted,
       );
       return;
     }
-    await deleteFilesOnDeviceOnly(context, offlineDeletableFiles);
-    selectedFiles.unSelectAll(offlineDeletableFiles.toSet());
+    await deleteOnDeviceOnlyAction(context, localGalleryDeletableFiles);
+    selectedFiles.unSelectAll(localGalleryDeletableFiles.toSet());
     return;
   }
   final containsUploadedFile = deletableFiles.any((f) => f.isUploaded);
   final containsLocalFile = deletableFiles.any((f) => f.localID != null);
 
-  final List<ButtonWidget> buttons = [];
   final bool isBothLocalAndRemote = containsUploadedFile && containsLocalFile;
   final bool isLocalOnly = !containsUploadedFile;
   final bool isRemoteOnly = !containsLocalFile;
-  final String? bodyHighlight = isBothLocalAndRemote
-      ? AppLocalizations.of(context).theyWillBeDeletedFromAllAlbums
-      : null;
-  String body = "";
+  late final String body;
+  late final String? bodyHighlight;
   if (isBothLocalAndRemote) {
     body = AppLocalizations.of(context).someItemsAreInBothEnteAndYourDevice;
+    bodyHighlight = AppLocalizations.of(context).theyWillBeDeletedFromAllAlbums;
   } else if (isRemoteOnly) {
-    body = AppLocalizations.of(context)
-        .selectedItemsWillBeDeletedFromAllAlbumsAndMoved;
+    body = AppLocalizations.of(
+      context,
+    ).selectedItemsWillBeDeletedFromAllAlbumsAndMoved;
+    bodyHighlight = null;
   } else if (isLocalOnly) {
     body = AppLocalizations.of(context).theseItemsWillBeDeletedFromYourDevice;
+    bodyHighlight = null;
   } else {
     throw AssertionError("Unexpected state");
   }
-  // Add option to delete from ente
-  if (isBothLocalAndRemote || isRemoteOnly) {
-    buttons.add(
-      ButtonWidget(
-        labelText: isBothLocalAndRemote
-            ? AppLocalizations.of(context).deleteFromEnte
-            : AppLocalizations.of(context).yesDelete,
-        buttonType: ButtonType.neutral,
-        buttonSize: ButtonSize.large,
-        shouldStickToDarkTheme: true,
-        buttonAction: ButtonAction.first,
-        shouldSurfaceExecutionStates: true,
-        isInAlert: true,
-        onTap: () async {
-          await deleteFilesFromRemoteOnly(
-            context,
-            deletableFiles,
-          ).then(
-            (value) {
-              showShortToast(
-                context,
-                AppLocalizations.of(context).movedToTrash,
-              );
-            },
-            onError: (e, s) {
-              showGenericErrorDialog(context: context, error: e);
-            },
-          );
-        },
-      ),
-    );
-  }
-  // Add option to delete from local
-  if (isBothLocalAndRemote || isLocalOnly) {
-    buttons.add(
-      ButtonWidget(
-        labelText: isBothLocalAndRemote
-            ? AppLocalizations.of(context).deleteFromDevice
-            : AppLocalizations.of(context).yesDelete,
-        buttonType: ButtonType.neutral,
-        buttonSize: ButtonSize.large,
-        shouldStickToDarkTheme: true,
-        buttonAction: ButtonAction.second,
-        shouldSurfaceExecutionStates: false,
-        isInAlert: true,
-        onTap: () async {
-          await deleteFilesOnDeviceOnly(context, deletableFiles);
-        },
-      ),
+
+  Future<void> deleteFromEnte() async {
+    await deleteFromRemoteOnlyAction(context, deletableFiles).then(
+      (value) {
+        showShortToast(context, AppLocalizations.of(context).movedToTrash);
+      },
+      onError: (e, s) {
+        showGenericErrorDialog(context: context, error: e);
+      },
     );
   }
 
   if (isBothLocalAndRemote) {
-    buttons.add(
-      ButtonWidget(
-        labelText: AppLocalizations.of(context).deleteFromBoth,
-        buttonType: ButtonType.neutral,
-        buttonSize: ButtonSize.large,
-        shouldStickToDarkTheme: true,
-        buttonAction: ButtonAction.third,
-        shouldSurfaceExecutionStates: true,
-        isInAlert: true,
-        onTap: () async {
-          await deleteFilesFromEverywhere(
-            context,
-            deletableFiles,
-          );
-        },
-      ),
+    final actionResult = await _showMixedDeleteTargetSheet(
+      context: context,
+      body: body,
+      bodyHighlight: bodyHighlight!,
+      onDelete: (target) async {
+        switch (target) {
+          case _MixedDeleteTarget.ente:
+            await deleteFromEnte();
+          case _MixedDeleteTarget.device:
+            await deleteOnDeviceOnlyAction(context, deletableFiles);
+          case _MixedDeleteTarget.both:
+            await deleteFromEverywhereAction(context, deletableFiles);
+        }
+      },
     );
+    if (actionResult?.action != null &&
+        actionResult!.action == ButtonAction.error) {
+      await showGenericErrorDialog(
+        context: context,
+        error: actionResult.exception,
+      );
+    } else {
+      selectedFiles.clearAll();
+    }
+    return;
   }
-  buttons.add(
-    ButtonWidget(
-      labelText: AppLocalizations.of(context).cancel,
-      buttonType: ButtonType.secondary,
-      buttonSize: ButtonSize.large,
-      shouldStickToDarkTheme: true,
-      buttonAction: ButtonAction.fourth,
-      isInAlert: true,
-    ),
-  );
-  final actionResult = await showActionSheet(
+
+  final actionResult = await _showSingleDeleteConfirmationSheet(
     context: context,
-    buttons: buttons,
-    actionSheetType: ActionSheetType.defaultActionSheet,
     body: body,
-    bodyHighlight: bodyHighlight,
+    action: isRemoteOnly ? ButtonAction.first : ButtonAction.second,
+    shouldSurfaceExecutionStates: isRemoteOnly,
+    onDelete: () async {
+      if (isRemoteOnly) {
+        await deleteFromEnte();
+      } else {
+        await deleteOnDeviceOnlyAction(context, deletableFiles);
+      }
+    },
   );
   if (actionResult?.action != null &&
       actionResult!.action == ButtonAction.error) {
@@ -877,4 +893,156 @@ Future<void> showDeleteSheet(
   } else {
     selectedFiles.clearAll();
   }
+}
+
+enum _MixedDeleteTarget { ente, device, both }
+
+class _MixedDeleteTargetOption {
+  const _MixedDeleteTargetOption({
+    required this.target,
+    required this.action,
+    required this.label,
+  });
+
+  final _MixedDeleteTarget target;
+  final ButtonAction action;
+  final String label;
+}
+
+Future<ButtonResult?> _showMixedDeleteTargetSheet({
+  required BuildContext context,
+  required String body,
+  required String bodyHighlight,
+  required Future<void> Function(_MixedDeleteTarget target) onDelete,
+}) {
+  final l10n = AppLocalizations.of(context);
+  return showBottomSheetComponent<ButtonResult>(
+    context: context,
+    useRootNavigator: Platform.isIOS,
+    builder: (_) => _MixedDeleteTargetSheet(
+      title: l10n.areYouSure,
+      body: body,
+      bodyHighlight: bodyHighlight,
+      closeTooltip: l10n.close,
+      options: [
+        _MixedDeleteTargetOption(
+          target: _MixedDeleteTarget.ente,
+          action: ButtonAction.first,
+          label: l10n.deleteFromEnte,
+        ),
+        _MixedDeleteTargetOption(
+          target: _MixedDeleteTarget.device,
+          action: ButtonAction.second,
+          label: l10n.deleteFromDevice,
+        ),
+        _MixedDeleteTargetOption(
+          target: _MixedDeleteTarget.both,
+          action: ButtonAction.third,
+          label: l10n.deleteFromBoth,
+        ),
+      ],
+      onDelete: onDelete,
+    ),
+  );
+}
+
+Future<ButtonResult?> _showSingleDeleteConfirmationSheet({
+  required BuildContext context,
+  required String body,
+  required ButtonAction action,
+  required bool shouldSurfaceExecutionStates,
+  required Future<void> Function() onDelete,
+}) {
+  final l10n = AppLocalizations.of(context);
+  return showBottomSheetComponent<ButtonResult>(
+    context: context,
+    useRootNavigator: Platform.isIOS,
+    builder: (sheetContext) => BottomSheetComponent(
+      title: l10n.areYouSure,
+      message: body,
+      illustration: Image.asset("assets/warning-grey.png"),
+      closeTooltip: l10n.close,
+      closeResult: ButtonResult(ButtonAction.fourth),
+      actions: [
+        ButtonComponent(
+          label: l10n.yesDelete,
+          variant: ButtonComponentVariant.critical,
+          shouldSurfaceExecutionStates: shouldSurfaceExecutionStates,
+          onTap: () => _runDeleteAction(sheetContext, action, onDelete),
+        ),
+      ],
+    ),
+  );
+}
+
+class _MixedDeleteTargetSheet extends StatelessWidget {
+  const _MixedDeleteTargetSheet({
+    required this.title,
+    required this.body,
+    required this.bodyHighlight,
+    required this.closeTooltip,
+    required this.options,
+    required this.onDelete,
+  });
+
+  final String title;
+  final String body;
+  final String bodyHighlight;
+  final String closeTooltip;
+  final List<_MixedDeleteTargetOption> options;
+  final Future<void> Function(_MixedDeleteTarget target) onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    return BottomSheetComponent(
+      title: title,
+      message: '$body\n$bodyHighlight',
+      illustration: Image.asset("assets/warning-grey.png"),
+      closeTooltip: closeTooltip,
+      actions: [
+        for (final option in options)
+          ButtonComponent(
+            key: ValueKey('mixedDeleteTarget.${option.target.name}'),
+            label: option.label,
+            variant: _variantFor(option.target),
+            onTap: () => _runDeleteAction(
+              context,
+              option.action,
+              () => onDelete(option.target),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+Future<void> _runDeleteAction(
+  BuildContext context,
+  ButtonAction action,
+  Future<void> Function() onDelete,
+) async {
+  try {
+    await onDelete();
+    if (!context.mounted) return;
+    Navigator.of(context).pop(ButtonResult(action));
+  } catch (error) {
+    if (context.mounted) {
+      Navigator.of(
+        context,
+      ).pop(ButtonResult(ButtonAction.error, _toException(error)));
+    }
+    rethrow;
+  }
+}
+
+ButtonComponentVariant _variantFor(_MixedDeleteTarget target) {
+  return switch (target) {
+    _MixedDeleteTarget.ente ||
+    _MixedDeleteTarget.device => ButtonComponentVariant.neutral,
+    _MixedDeleteTarget.both => ButtonComponentVariant.critical,
+  };
+}
+
+Exception _toException(Object error) {
+  return error is Exception ? error : Exception(error.toString());
 }

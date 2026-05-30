@@ -1,7 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use tauri::Manager;
-use tauri::RunEvent;
+use tauri::{Manager, RunEvent};
 
 mod commands;
 mod logging;
@@ -11,19 +10,25 @@ fn main() {
     logging::log("App", "starting Tauri backend");
 
     let app = tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(commands::SrpState::default())
         .manage(commands::LlmState::default())
+        .manage(commands::LlmModelDownloadState::default())
         .manage(commands::ChatDbState::default())
         .setup(|app| {
-            logging::init_logging(&app.handle());
+            logging::init_logging(app.handle());
             logging::log("App", "setup started");
 
             // Show the main window after setup is complete
-            if let Some(window) = app.get_window("main") {
-                if let Err(err) = window.show() {
-                    logging::log("App", format!("failed to show main window error={err}"));
-                    return Err(Box::new(err));
-                }
+            if let Some(window) = app.get_webview_window("main")
+                && let Err(err) = window.show()
+            {
+                logging::log("App", format!("failed to show main window error={err}"));
+                return Err(Box::new(err));
             }
             logging::log("App", "setup complete");
             Ok(())
@@ -63,6 +68,8 @@ fn main() {
             commands::chat_db_mark_session_deleted,
             commands::chat_db_mark_message_deleted,
             commands::chat_db_mark_attachment_uploaded,
+            commands::chat_db_compress_attachment_image,
+            commands::chat_db_compress_attachment_image_file,
             commands::chat_db_get_pending_deletions,
             commands::chat_db_hard_delete,
             commands::chat_db_reset,
@@ -73,10 +80,13 @@ fn main() {
             commands::llm_create_context,
             commands::llm_free_context,
             commands::llm_free_model,
+            commands::llm_prewarm_multimodal_context,
             commands::llm_generate_chat_stream,
             commands::llm_cancel,
             commands::system_info,
             commands::get_ensu_defaults,
+            commands::llm_download_model_files,
+            commands::llm_cancel_model_download,
             commands::fs_file_size,
             commands::fs_read_head,
             commands::fs_append_bytes,

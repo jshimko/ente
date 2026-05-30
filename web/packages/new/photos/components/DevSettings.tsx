@@ -15,6 +15,7 @@ import { useIsSmallWidth } from "ente-base/components/utils/hooks";
 import { ensureOk } from "ente-base/http";
 import { getKVS, removeKV, setKV } from "ente-base/kv";
 import log from "ente-base/log";
+import { resetRegistrationDisabledCache } from "ente-base/server-config";
 import { useFormik } from "formik";
 import { t } from "i18next";
 import React, { useEffect, useState } from "react";
@@ -203,6 +204,8 @@ const Form: React.FC<FormProps> = ({ initialAPIOrigin, onClose }) => {
  * previously saved API origin (if any).
  */
 const updateAPIOrigin = async (origin: string) => {
+    resetRegistrationDisabledCache();
+
     if (!origin) {
         await removeKV("apiOrigin");
         return;

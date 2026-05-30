@@ -3,6 +3,7 @@ import { SignUpContents } from "ente-accounts/components/SignUpContents";
 import { savedPartialLocalUser } from "ente-accounts/services/accounts-db";
 import { LoadingIndicator } from "ente-base/components/loaders";
 import { customAPIHost } from "ente-base/origins";
+import { isRegistrationDisabled } from "ente-base/server-config";
 import { useRouter } from "next/router";
 import React, { useCallback, useEffect, useState } from "react";
 
@@ -19,8 +20,18 @@ const Page: React.FC = () => {
 
     useEffect(() => {
         void customAPIHost().then(setHost);
-        if (savedPartialLocalUser()?.email) void router.replace("/verify");
-        setLoading(false);
+        if (savedPartialLocalUser()?.email) {
+            void router.replace("/verify");
+            return;
+        }
+        // See: [Note: Server-side registration gate]
+        void isRegistrationDisabled().then((disabled) => {
+            if (disabled) {
+                void router.replace("/login");
+            } else {
+                setLoading(false);
+            }
+        });
     }, [router]);
 
     const onLogin = useCallback(() => void router.push("/login"), [router]);

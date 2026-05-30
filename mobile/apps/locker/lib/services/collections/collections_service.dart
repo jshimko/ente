@@ -21,6 +21,7 @@ import "package:locker/services/collections/models/files_split.dart";
 import "package:locker/services/collections/models/public_url.dart";
 import 'package:locker/services/configuration.dart';
 import "package:locker/services/db/locker_db.dart";
+import 'package:locker/services/files/offline/offline_files_service.dart';
 import 'package:locker/services/files/sync/models/file.dart';
 import 'package:locker/services/trash/models/trash_item_request.dart';
 import "package:locker/services/trash/trash_service.dart";
@@ -78,14 +79,15 @@ class CollectionService {
     final previousSyncTime = _db.getSyncTime();
     final shouldCheckFirstSyncCompletion = previousSyncTime == 0;
 
-    final updatedCollections =
-        await CollectionApiClient.instance.getCollections(previousSyncTime);
+    final updatedCollections = await CollectionApiClient.instance
+        .getCollections(previousSyncTime);
     if (updatedCollections.isEmpty) {
       if (shouldCheckFirstSyncCompletion) {
         final didMarkFirstSync = await _setFirstSyncCompleted();
         if (didMarkFirstSync) {
-          Bus.instance
-              .fire(CollectionsUpdatedEvent('first_sync_complete_empty'));
+          Bus.instance.fire(
+            CollectionsUpdatedEvent('first_sync_complete_empty'),
+          );
         }
       }
       _logger.info("No collections to sync.");
@@ -101,38 +103,47 @@ class CollectionService {
       await _setFirstSyncCompleted();
     }
 
-    final List<Future> fileFutures = [];
+    final List<Future<bool>> fileFutures = [];
     for (final collection in updatedCollections) {
       if (collection.isDeleted) {
         continue;
       }
       final syncTime = _db.getCollectionSyncTime(collection.id);
       fileFutures.add(
-        _apiClient.getFiles(collection, syncTime).then((diff) async {
-          if (diff.updatedFiles.isNotEmpty) {
-            await _db.addFilesToCollection(
-              collection,
-              diff.updatedFiles,
-            );
-          }
-          if (diff.deletedFiles.isNotEmpty) {
-            await _db.deleteFilesFromCollection(
-              collection,
-              diff.deletedFiles,
-            );
-          }
-          await _db.setCollectionSyncTime(
-            collection.id,
-            diff.latestUpdatedAtTime,
-          );
-        }).catchError((e) {
-          _logger.severe(
-            "Failed to fetch files for collection ${collection.id}: $e",
-          );
-        }),
+        _apiClient
+            .getFiles(collection, syncTime)
+            .then((diff) async {
+              if (diff.updatedFiles.isNotEmpty) {
+                await _db.addFilesToCollection(collection, diff.updatedFiles);
+              }
+              if (diff.deletedFiles.isNotEmpty) {
+                await _db.deleteFilesFromCollection(
+                  collection,
+                  diff.deletedFiles,
+                );
+              }
+              await _db.setCollectionSyncTime(
+                collection.id,
+                diff.latestUpdatedAtTime,
+              );
+              return true;
+            })
+            .catchError((e) {
+              _logger.severe(
+                "Failed to fetch files for collection ${collection.id}: $e",
+              );
+              return false;
+            }),
       );
     }
-    await Future.wait(fileFutures);
+    final fileSyncResults = await Future.wait(fileFutures);
+    if (fileSyncResults.every((didSync) => didSync)) {
+      await OfflineFilesService.instance.cleanupInactiveOfflineFiles();
+    } else {
+      _logger.warning(
+        "Skipping offline stale cleanup because one or more collection syncs failed",
+      );
+    }
     if (updatedCollections.isNotEmpty) {
       Bus.instance.fire(CollectionsUpdatedEvent('sync'));
     }
@@ -187,9 +198,7 @@ class CollectionService {
     }
   }
 
-  Future<List<Collection>> getCollections({
-    bool includeDeleted = false,
-  }) async {
+  Future<List<Collection>> getCollections({bool includeDeleted = false}) async {
     final collections = await _db.getCollections();
     if (includeDeleted) {
       return collections;
@@ -362,10 +371,7 @@ class CollectionService {
 
   Future<void> rename(Collection collection, String newName) async {
     try {
-      await _apiClient.rename(
-        collection,
-        newName,
-      );
+      await _apiClient.rename(collection, newName);
       _logger.info("Renamed collection ${collection.id}");
       // Let sync update the local state
       await sync();
@@ -393,17 +399,20 @@ class CollectionService {
     // One-time cleanup of orphaned files from before the trash deletion fix
     unawaited(cleanupOrphanedFiles());
 
-    // ignore: unawaited_futures
-    sync().then((_) {
-      ensureDefaultCollections();
-    }).catchError((error) {
-      if (error is UnauthorizedError) {
-        _logger.info("Session expired, triggering logout");
-        Bus.instance.fire(TriggerLogoutEvent());
-      } else {
-        _logger.severe("Failed to initialize collections: $error");
-      }
-    });
+    unawaited(
+      sync()
+          .then((_) {
+            ensureDefaultCollections();
+          })
+          .catchError((error) {
+            if (error is UnauthorizedError) {
+              _logger.info("Session expired, triggering logout");
+              Bus.instance.fire(TriggerLogoutEvent());
+            } else {
+              _logger.severe("Failed to initialize collections: $error");
+            }
+          }),
+    );
     final collections = await _db.getCollections();
     for (final collection in collections) {
       _collectionIDToCollections[collection.id] = collection;
@@ -417,10 +426,13 @@ class CollectionService {
         return collection;
       }
     }
-    _logger
-        .info("No favorites collection found, creating important collection.");
-    final collection =
-        await createCollection("Important", type: CollectionType.favorites);
+    _logger.info(
+      "No favorites collection found, creating important collection.",
+    );
+    final collection = await createCollection(
+      "Important",
+      type: CollectionType.favorites,
+    );
     return collection;
   }
 
@@ -435,11 +447,6 @@ class CollectionService {
 
     try {
       await _apiClient.removeFromCollection(collectionId, files);
-
-      final collection = await getCollectionByID(collectionId);
-      if (collection != null) {
-        await _db.deleteFilesFromCollection(collection, files);
-      }
 
       Bus.instance.fire(CollectionsUpdatedEvent('files_removed'));
 
@@ -469,17 +476,15 @@ class CollectionService {
       // Call API to move files on server
       await _apiClient.move(files, from, to);
 
-      // Update local database for all files
-      // Remove from source collection
-      await _db.deleteFilesFromCollection(from, files);
-
       // Update collectionID for all files
       for (final file in files) {
         file.collectionID = to.id;
       }
 
-      // Add to target collection
+      // Write the destination row first so local key material and offline state
+      // stay attached to the moved file before the source mapping is removed.
       await _db.addFilesToCollection(to, files);
+      await _db.deleteFilesFromCollection(from, files);
 
       // Let sync update the local state to ensure consistency
       if (runSync) {
@@ -531,11 +536,7 @@ class CollectionService {
         for (final file in files) {
           final fileCollections = await getCollectionsForFile(file);
           for (final fileCollection in fileCollections) {
-            await trashFile(
-              file,
-              fileCollection,
-              runSync: false,
-            );
+            await trashFile(file, fileCollection, runSync: false);
           }
         }
       }
@@ -606,10 +607,7 @@ class CollectionService {
     }
 
     if (!isCollectionOwner && split.ownedByOtherUsers.isNotEmpty) {
-      showShortToast(
-        context,
-        "Can only remove files owned by you",
-      );
+      showShortToast(context, "Can only remove files owned by you");
       return;
     }
 
@@ -629,8 +627,8 @@ class CollectionService {
       }
     }
 
-    final Map<int, List<EnteFile>> collectionToFilesMap =
-        await _db.getAllFilesGroupByCollectionID(uploadedIDs);
+    final Map<int, List<EnteFile>> collectionToFilesMap = await _db
+        .getAllFilesGroupByCollectionID(uploadedIDs);
 
     // Find and map the files from current collection to to entries in other
     // collections. This mapping is done to avoid moving all the files to
@@ -653,8 +651,9 @@ class CollectionService {
             if (!destCollectionToFilesMap.containsKey(targetCollection.id)) {
               destCollectionToFilesMap[targetCollection.id] = <EnteFile>[];
             }
-            destCollectionToFilesMap[targetCollection.id]!
-                .add(pendingAssignMap[file.uploadedFileID!]!);
+            destCollectionToFilesMap[targetCollection.id]!.add(
+              pendingAssignMap[file.uploadedFileID!]!,
+            );
             pendingAssignMap.remove(file.uploadedFileID);
           }
         }
@@ -674,8 +673,9 @@ class CollectionService {
           if (!destCollectionToFilesMap.containsKey(toCollectionID)) {
             destCollectionToFilesMap[toCollectionID] = <EnteFile>[];
           }
-          destCollectionToFilesMap[toCollectionID]!
-              .add(pendingAssignMap[file.uploadedFileID!]!);
+          destCollectionToFilesMap[toCollectionID]!.add(
+            pendingAssignMap[file.uploadedFileID!]!,
+          );
         }
       }
     }
@@ -704,12 +704,7 @@ class CollectionService {
         );
       } else {
         final toCollection = await getCollection(entry.key);
-        await move(
-          entry.value,
-          collection,
-          toCollection,
-          runSync: false,
-        );
+        await move(entry.value, collection, toCollection, runSync: false);
       }
     }
   }
@@ -727,11 +722,13 @@ class CollectionService {
     if (fromCollectionID == toCollectionID) {
       return false;
     }
-    final Collection? targetCollection =
-        await getCollectionByID(toCollectionID);
-    // ignore non-cached collections, uncategorized and favorite
-    // collections and collections ignored by others
+    final Collection? targetCollection = await getCollectionByID(
+      toCollectionID,
+    );
+    // ignore non-cached, deleted, uncategorized and favorite collections,
+    // and collections ignored by others
     if (targetCollection == null ||
+        targetCollection.isDeleted ||
         (CollectionType.uncategorized == targetCollection.type ||
             targetCollection.type == CollectionType.favorites) ||
         targetCollection.owner.id != userID) {
@@ -802,8 +799,9 @@ class CollectionService {
         return collection;
       }
     }
-    _logger
-        .info("No Documents collection found, creating Documents collection.");
+    _logger.info(
+      "No Documents collection found, creating Documents collection.",
+    );
     return createCollection("Documents", type: CollectionType.folder);
   }
 

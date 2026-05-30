@@ -12,6 +12,7 @@ class RemoteFlags {
   final bool internalUser;
   final bool betaUser;
   final bool enableMobMultiPart;
+  final bool isSelfHosted;
   final int serverApiFlag;
   final String castUrl;
   final String embedUrl;
@@ -27,6 +28,7 @@ class RemoteFlags {
     required this.internalUser,
     required this.betaUser,
     required this.enableMobMultiPart,
+    required this.isSelfHosted,
     required this.serverApiFlag,
     required this.castUrl,
     required this.embedUrl,
@@ -44,6 +46,7 @@ class RemoteFlags {
     bool? internalUser,
     bool? betaUser,
     bool? enableMobMultiPart,
+    bool? isSelfHosted,
     int? serverApiFlag,
     String? castUrl,
     String? customDomain,
@@ -59,6 +62,7 @@ class RemoteFlags {
       internalUser: internalUser ?? this.internalUser,
       betaUser: betaUser ?? this.betaUser,
       enableMobMultiPart: enableMobMultiPart ?? this.enableMobMultiPart,
+      isSelfHosted: isSelfHosted ?? this.isSelfHosted,
       serverApiFlag: serverApiFlag ?? this.serverApiFlag,
       castUrl: castUrl ?? this.castUrl,
       customDomain: customDomain ?? this.customDomain,
@@ -76,11 +80,12 @@ class RemoteFlags {
     internalUser: kDebugMode,
     betaUser: kDebugMode,
     enableMobMultiPart: false,
+    isSelfHosted: false,
     serverApiFlag: 0,
-    castUrl: "https://cast.ente.io",
+    castUrl: "https://cast.ente.com",
     customDomain: "",
-    embedUrl: "https://embed.ente.io",
-    customDomainCNAME: "my.ente.io",
+    embedUrl: "https://embed.ente.com",
+    customDomainCNAME: "my.ente.com",
   );
 
   String toJson() => json.encode(toMap());
@@ -94,6 +99,7 @@ class RemoteFlags {
       'internalUser': internalUser,
       'betaUser': betaUser,
       'enableMobMultiPart': enableMobMultiPart,
+      'isSelfHosted': isSelfHosted,
       'serverApiFlag': serverApiFlag,
       'castUrl': castUrl,
       'customDomain': customDomain,
@@ -115,6 +121,7 @@ class RemoteFlags {
       betaUser: map['betaUser'] ?? defaultValue.betaUser,
       enableMobMultiPart:
           map['enableMobMultiPart'] ?? defaultValue.enableMobMultiPart,
+      isSelfHosted: map['isSelfHosted'] ?? defaultValue.isSelfHosted,
       serverApiFlag: _parseServerApiFlag(map) ?? defaultValue.serverApiFlag,
       castUrl: map['castUrl'] ?? defaultValue.castUrl,
       customDomain: map['customDomain'] ?? defaultValue.customDomain,

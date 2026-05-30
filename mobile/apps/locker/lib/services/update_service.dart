@@ -14,7 +14,7 @@ class UpdateService {
   static const String kUpdateAvailableShownTimeKey =
       "update_available_shown_time_key";
   static const String kChangeLogShownVersionKey = "update_change_log_key";
-  static const int currentChangeLogVersion = 0;
+  static const int currentChangeLogVersion = 1;
   static const String _lockerIndependentPackageName =
       "io.ente.locker.independent";
   static const String _lockerIndependentPackagePrefix =
@@ -82,7 +82,8 @@ class UpdateService {
         _prefs!.getInt(kUpdateAvailableShownTimeKey) ?? 0;
     final now = DateTime.now().microsecondsSinceEpoch;
     final thresholdInDays = _latestVersion!.shouldNotify ? 1 : 3;
-    final hasExceededThreshold = (now - lastNotificationShownTime) >
+    final hasExceededThreshold =
+        (now - lastNotificationShownTime) >
         (thresholdInDays * microSecondsInDay);
 
     return hasExceededThreshold;
@@ -100,7 +101,11 @@ class UpdateService {
     if (!_isInitialized) {
       return false;
     }
-    final lastShownVersion = _prefs!.getInt(kChangeLogShownVersionKey) ?? 0;
+    final lastShownVersion = _prefs!.getInt(kChangeLogShownVersionKey);
+    if (lastShownVersion == null) {
+      await markChangeLogShown();
+      return false;
+    }
     return lastShownVersion < currentChangeLogVersion;
   }
 
@@ -131,8 +136,9 @@ class UpdateService {
     if (!_isInitialized || Platform.isIOS) {
       return false;
     }
-    return _packageInfo!.packageName
-        .startsWith(_lockerIndependentPackagePrefix);
+    return _packageInfo!.packageName.startsWith(
+      _lockerIndependentPackagePrefix,
+    );
   }
 
   bool isFDroidFlavor() {
@@ -151,8 +157,9 @@ class UpdateService {
 
   Future<LatestVersionInfo> _getLatestVersionInfo() async {
     final response = await Network.instance.getDio().get(_releaseInfoUrl);
-    final latestVersion =
-        Map<String, dynamic>.from(response.data["latestVersion"]);
+    final latestVersion = Map<String, dynamic>.from(
+      response.data["latestVersion"],
+    );
     return LatestVersionInfo.fromMap(latestVersion);
   }
 

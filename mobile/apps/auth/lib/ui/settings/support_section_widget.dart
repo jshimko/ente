@@ -35,17 +35,13 @@ class _SupportSectionWidgetState extends State<SupportSectionWidget> {
       children: [
         sectionOptionSpacing,
         MenuItemWidget(
-          captionedTextWidget: CaptionedTextWidget(
-            title: l10n.faq,
-          ),
+          captionedTextWidget: CaptionedTextWidget(title: l10n.faq),
           pressedColor: getEnteColorScheme(context).fillFaint,
           trailingIcon: Icons.chevron_right_outlined,
           trailingIconIsMuted: true,
           onTap: () async {
             try {
-              await PlatformUtil.openWebView(
-                context,
-                context.l10n.faq,
+              await PlatformUtil.openUrlInBrowser(
                 "https://ente.com/help/auth/faq",
               );
             } catch (e) {
@@ -55,9 +51,7 @@ class _SupportSectionWidgetState extends State<SupportSectionWidget> {
         ),
         sectionOptionSpacing,
         MenuItemWidget(
-          captionedTextWidget: CaptionedTextWidget(
-            title: l10n.suggestFeatures,
-          ),
+          captionedTextWidget: CaptionedTextWidget(title: l10n.suggestFeatures),
           pressedColor: getEnteColorScheme(context).fillFaint,
           trailingIcon: Icons.chevron_right_outlined,
           trailingIconIsMuted: true,
@@ -67,8 +61,9 @@ class _SupportSectionWidgetState extends State<SupportSectionWidget> {
               mode: LaunchMode.externalApplication,
             );
             if (!launched) {
-              Logger("SupportSection")
-                  .warning("Failed to open feature request discussions");
+              Logger(
+                "SupportSection",
+              ).warning("Failed to open feature request discussions");
             }
           },
         ),
@@ -86,9 +81,7 @@ class _SupportSectionWidgetState extends State<SupportSectionWidget> {
         // ),
         // sectionOptionSpacing,
         MenuItemWidget(
-          captionedTextWidget: CaptionedTextWidget(
-            title: l10n.reportABug,
-          ),
+          captionedTextWidget: CaptionedTextWidget(title: l10n.reportABug),
           pressedColor: getEnteColorScheme(context).fillFaint,
           trailingIcon: Icons.chevron_right_outlined,
           trailingIconIsMuted: true,

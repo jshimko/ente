@@ -10,7 +10,6 @@ import 'package:ente_auth/utils/dialog_util.dart';
 import 'package:ente_auth/utils/platform_util.dart';
 import 'package:ente_auth/utils/toast_util.dart';
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 class AboutSectionWidget extends StatelessWidget {
   const AboutSectionWidget({super.key});
@@ -36,8 +35,9 @@ class AboutSectionWidget extends StatelessWidget {
           trailingIcon: Icons.chevron_right_outlined,
           trailingIconIsMuted: true,
           onTap: () async {
-            // ignore: unawaited_futures
-            launchUrl(Uri.parse("https://github.com/ente-io/ente"));
+            await PlatformUtil.openUrlInBrowser(
+              "https://github.com/ente-io/ente",
+            );
           },
         ),
         sectionOptionSpacing,
@@ -62,11 +62,13 @@ class AboutSectionWidget extends StatelessWidget {
                     trailingIcon: Icons.chevron_right_outlined,
                     trailingIconIsMuted: true,
                     onTap: () async {
-                      final dialog =
-                          createProgressDialog(context, context.l10n.checking);
+                      final dialog = createProgressDialog(
+                        context,
+                        context.l10n.checking,
+                      );
                       await dialog.show();
-                      final shouldUpdate =
-                          await UpdateService.instance.shouldUpdate();
+                      final shouldUpdate = await UpdateService.instance
+                          .shouldUpdate();
                       await dialog.hide();
                       if (shouldUpdate) {
                         // ignore: unawaited_futures
@@ -110,18 +112,12 @@ class AboutMenuItemWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MenuItemWidget(
-      captionedTextWidget: CaptionedTextWidget(
-        title: title,
-      ),
+      captionedTextWidget: CaptionedTextWidget(title: title),
       pressedColor: getEnteColorScheme(context).fillFaint,
       trailingIcon: Icons.chevron_right_outlined,
       trailingIconIsMuted: true,
       onTap: () async {
-        await PlatformUtil.openWebView(
-          context,
-          webPageTitle ?? title,
-          url,
-        );
+        await PlatformUtil.openUrlInBrowser(url);
       },
     );
   }

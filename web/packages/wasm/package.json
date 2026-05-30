@@ -15,13 +15,15 @@
     "module": "./pkg/ente_wasm.js",
     "types": "./pkg/ente_wasm.d.ts",
     "scripts": {
-        "build": "wasm-pack build --target bundler",
-        "test": "vitest --run"
+        "build": "wasm-pack build ../../../rust/bindings/wasm/ente-wasm --target bundler --out-dir ../../../../web/packages/wasm/pkg",
+        "lint": "eslint .",
+        "test": "vitest --run",
+        "tsc": "tsc --noEmit"
     },
     "devDependencies": {
         "ente-build-config": "*",
         "vite-plugin-wasm": "^3.2.4",
         "vitest": "^3.2.4",
-        "wasm-pack": "^0.14.0"
+        "wasm-pack": "0.15.0"
     }
 }

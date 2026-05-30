@@ -60,15 +60,14 @@ class _StorageCardWidgetState extends State<StorageCardWidget> {
     final userDetails = inheritedUserDetails?.userDetails;
 
     if (inheritedUserDetails == null) {
-      _logger.severe(
-        (InheritedUserDetails).toString() + 'is null',
-      );
+      _logger.severe((InheritedUserDetails).toString() + 'is null');
       throw Error();
     } else {
       return GestureDetector(
         behavior: HitTestBehavior.translucent,
         onTap: () async {
-          final isFamilyMember = (userDetails?.isPartOfFamily() ?? false) &&
+          final isFamilyMember =
+              (userDetails?.isPartOfFamily() ?? false) &&
               !((userDetails?.currentFamilyMember()?.isAdmin) ?? false);
           if (isFamilyMember) {
             await billingService.launchFamilyPortal(
@@ -92,9 +91,7 @@ class _StorageCardWidgetState extends State<StorageCardWidget> {
     }
   }
 
-  Widget containerForUserDetails(
-    UserDetails? userDetails,
-  ) {
+  Widget containerForUserDetails(UserDetails? userDetails) {
     return ClipRRect(
       borderRadius: BorderRadius.circular(15),
       child: Container(
@@ -105,27 +102,17 @@ class _StorageCardWidgetState extends State<StorageCardWidget> {
           gradient: const LinearGradient(
             begin: Alignment.bottomCenter,
             end: Alignment.topCenter,
-            colors: [
-              Color(0xFF212121),
-              Color(0xFF434343),
-            ],
+            colors: [Color(0xFF212121), Color(0xFF434343)],
           ),
         ),
         child: Stack(
           children: [
             Positioned.fill(
-              child: CustomPaint(
-                painter: _DotsPainter(),
-                size: Size.infinite,
-              ),
+              child: CustomPaint(painter: _DotsPainter(), size: Size.infinite),
             ),
             userDetails is UserDetails
                 ? _userDetails(userDetails)
-                : const Center(
-                    child: EnteLoadingWidget(
-                      color: strokeBaseDark,
-                    ),
-                  ),
+                : const Center(child: EnteLoadingWidget(color: strokeBaseDark)),
           ],
         ),
       ),
@@ -133,6 +120,10 @@ class _StorageCardWidgetState extends State<StorageCardWidget> {
   }
 
   Widget _userDetails(UserDetails userDetails) {
+    if (flagService.isSelfHosted) {
+      return _selfHostedUserDetails(userDetails);
+    }
+
     const hundredMBinBytes = 107374182;
     const oneTBinBytes = 1073741824000;
     showFamilyBreakup = userDetails.isPartOfFamily();
@@ -292,21 +283,78 @@ class _StorageCardWidgetState extends State<StorageCardWidget> {
     );
   }
 
+  Widget _selfHostedUserDetails(UserDetails userDetails) {
+    final usedStorageInBytes = userDetails.getFamilyOrPersonalUsage();
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            AppLocalizations.of(context).storage,
+            style: const TextStyle(
+              fontFamily: 'Montserrat',
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+              color: textMutedDark,
+            ),
+          ),
+          const SizedBox(height: 2),
+          RichText(
+            overflow: TextOverflow.ellipsis,
+            maxLines: 1,
+            text: TextSpan(
+              style: const TextStyle(
+                fontFamily: 'Montserrat',
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: textBaseDark,
+                letterSpacing: -1,
+              ),
+              children: [
+                TextSpan(
+                  text: '${convertBytesToReadableFormat(usedStorageInBytes)} ',
+                ),
+                const TextSpan(
+                  text: 'used',
+                  style: TextStyle(color: textMutedDark),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            AppLocalizations.of(context).memoryCount(
+              count: userDetails.fileCount,
+              formattedCount: NumberFormat().format(userDetails.fileCount),
+            ),
+            style: const TextStyle(
+              fontFamily: 'Montserrat',
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              color: Color.fromRGBO(165, 165, 165, 0.79),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   List<TextSpan> _usedStorageDetails({
-    @required isMobileScreenSmall,
-    @required shouldShowUsedStorageInTBs,
-    @required shouldShowTotalStorageInTBs,
-    @required shouldShowUsedStorageInMBs,
-    @required usedStorageInBytes,
-    @required usedStorageInGB,
-    @required totalStorageInGB,
-    @required usedStorageInTB,
-    @required totalStorageInTB,
+    required bool isMobileScreenSmall,
+    required bool shouldShowUsedStorageInTBs,
+    required bool shouldShowTotalStorageInTBs,
+    required bool shouldShowUsedStorageInMBs,
+    required int usedStorageInBytes,
+    required num usedStorageInGB,
+    required int totalStorageInGB,
+    required num usedStorageInTB,
+    required num totalStorageInTB,
   }) {
     if (isMobileScreenSmall) {
-      return [
-        TextSpan(text: '$usedStorageInGB/$totalStorageInGB GB'),
-      ];
+      return [TextSpan(text: '$usedStorageInGB/$totalStorageInGB GB')];
     }
     late num currentUsage, totalStorage;
     late String currentUsageUnit, totalStorageUnit;

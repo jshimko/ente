@@ -84,7 +84,11 @@ func getPlansIN() ente.BillingPlansPerCountry {
 func parsePricingFile(fileName string) ente.BillingPlansPerCountry {
 	filePath, err := config.BillingConfigFilePath(fileName)
 	if err != nil {
-		logrus.Fatalf("Error getting billing config file: %v", err)
+		logrus.Warnf("Skipping billing plans, config file not found: %v", err)
+		return nil
+	}
+	if filePath == "" {
+		return nil
 	}
 	data, err := os.ReadFile(filePath)
 	if err != nil {
@@ -107,17 +111,26 @@ func GetFreeSubscription(userID int64) ente.Subscription {
 		UserID:                userID,
 		ProductID:             ente.FreePlanProductID,
 		OriginalTransactionID: ente.FreePlanTransactionID,
-		Storage:               ente.FreePlanStorage,
+		Storage:               getFreeStorage(),
 		ExpiryTime:            time.NYearsFromNow(ente.TrialPeriodDuration),
 	}
 }
 
 func GetFreePlan() ente.FreePlan {
 	return ente.FreePlan{
-		Storage:  ente.FreePlanStorage,
+		Storage:  getFreeStorage(),
 		Period:   ente.PeriodYear,
 		Duration: ente.TrialPeriodDuration,
 	}
+}
+
+// getFreeStorage returns the storage for the free plan. Self-hosted deployments
+// get one million TB (not an actual limit).  Hosted gets the default 10 GB.
+func getFreeStorage() int64 {
+	if viper.GetBool("internal.is-self-hosted") {
+		return 1000000 * 1024 * 1024 * 1024 * 1024 // 1M TB
+	}
+	return ente.FreePlanStorage
 }
 
 func GetActivePlanIDs() []string {

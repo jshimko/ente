@@ -2,6 +2,12 @@
     "name": "auth",
     "version": "0.0.0",
     "private": true,
+    "scripts": {
+        "build": "next build --no-lint",
+        "dev": "next dev -p 3003",
+        "lint": "eslint .",
+        "tsc": "tsc --noEmit"
+    },
     "dependencies": {
         "ente-accounts": "*",
         "ente-base": "*",

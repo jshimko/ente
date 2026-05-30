@@ -7,15 +7,17 @@ class OnThisDayMemory extends SmartMemory {
     List<Memory> memories,
     int firstDateToShow,
     int lastDateToShow, {
+    String? id,
     super.firstCreationTime,
     super.lastCreationTime,
   }) : super(
-          memories,
-          MemoryType.onThisDay,
-          '',
-          firstDateToShow,
-          lastDateToShow,
-        );
+         memories,
+         MemoryType.onThisDay,
+         '',
+         firstDateToShow,
+         lastDateToShow,
+         id: id,
+       );
 
   @override
   String createTitle(AppLocalizations locals, String languageCode) {

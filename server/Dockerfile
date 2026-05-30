@@ -1,7 +1,13 @@
-FROM golang:1.23.4-alpine3.21 AS builder
+ARG GOLANG_VERSION=1.26.1-alpine3.23
+ARG ALPINE_VERSION=3.23
+
+FROM golang:${GOLANG_VERSION} AS builder
+
+RUN apk update && apk upgrade
 RUN apk add --no-cache gcc musl-dev git build-base pkgconfig
 
 ENV GOOS=linux
+ENV CGO_ENABLED=0
 
 WORKDIR /etc/ente/
 
@@ -11,9 +17,11 @@ RUN go mod download
 
 COPY . .
 RUN --mount=type=cache,target=/root/.cache/go-build \
-  go build -o museum cmd/museum/main.go
+  go build -trimpath -o museum cmd/museum/main.go
 
-FROM alpine:3.21
+FROM alpine:${ALPINE_VERSION}
+
+RUN apk update && apk upgrade
 COPY --from=builder /etc/ente/museum .
 COPY configurations configurations
 COPY migrations migrations

@@ -1,4 +1,4 @@
-import 'package:ente_qr/ente_qr_method_channel.dart';
+import 'package:ente_auth_qr/ente_qr_method_channel.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 
 /// The result of QR code scanning
@@ -7,24 +7,14 @@ class QrScanResult {
   final String? error;
   final bool success;
 
-  const QrScanResult({
-    this.content,
-    this.error,
-    required this.success,
-  });
+  const QrScanResult({this.content, this.error, required this.success});
 
   factory QrScanResult.success(String content) {
-    return QrScanResult(
-      content: content,
-      success: true,
-    );
+    return QrScanResult(content: content, success: true);
   }
 
   factory QrScanResult.error(String error) {
-    return QrScanResult(
-      error: error,
-      success: false,
-    );
+    return QrScanResult(error: error, success: false);
   }
 }
 
@@ -77,18 +67,11 @@ class QrScanResults {
   });
 
   factory QrScanResults.fromDetections(List<QrDetection> detections) {
-    return QrScanResults(
-      detections: detections,
-      success: true,
-    );
+    return QrScanResults(detections: detections, success: true);
   }
 
   factory QrScanResults.error(String error) {
-    return QrScanResults(
-      detections: const [],
-      error: error,
-      success: false,
-    );
+    return QrScanResults(detections: const [], error: error, success: false);
   }
 }
 

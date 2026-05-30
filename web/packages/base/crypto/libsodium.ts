@@ -499,6 +499,7 @@ export const decryptBlobBytes = async (
         await bytes(encryptedData),
         null,
     );
+    if (!pullResult) throw new Error("Failed to decrypt blob");
     return pullResult.message;
 };
 
@@ -554,7 +555,9 @@ export const decryptStreamBytes = async (
         const pullResult = sodium.crypto_secretstream_xchacha20poly1305_pull(
             pullState,
             buffer,
+            null,
         );
+        if (!pullResult) throw new Error("Failed to decrypt chunk");
         decryptedChunks.push(pullResult.message);
         tag = pullResult.tag;
         bytesRead += chunkSize;
@@ -608,7 +611,9 @@ export const decryptStreamChunk = async (
     const pullResult = sodium.crypto_secretstream_xchacha20poly1305_pull(
         pullState,
         data,
+        null,
     );
+    if (!pullResult) throw new Error("Failed to decrypt stream chunk");
     return pullResult.message;
 };
 
@@ -853,6 +858,21 @@ export const deriveInteractiveKey = async (
     const salt = await generateDeriveKeySalt();
     const opsLimit = sodium.crypto_pwhash_OPSLIMIT_INTERACTIVE;
     const memLimit = sodium.crypto_pwhash_MEMLIMIT_INTERACTIVE;
+
+    const key = await deriveKey(passphrase, salt, opsLimit, memLimit);
+    return { key, salt, opsLimit, memLimit };
+};
+
+/**
+ * A variant of {@link deriveSensitiveKey} for deriving an alternative key with
+ * parameters suitable for moderate-cost password gates.
+ */
+export const deriveModerateKey = async (
+    passphrase: string,
+): Promise<DerivedKey> => {
+    const salt = await generateDeriveKeySalt();
+    const opsLimit = sodium.crypto_pwhash_OPSLIMIT_MODERATE;
+    const memLimit = sodium.crypto_pwhash_MEMLIMIT_MODERATE;
 
     const key = await deriveKey(passphrase, salt, opsLimit, memLimit);
     return { key, salt, opsLimit, memLimit };

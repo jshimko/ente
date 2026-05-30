@@ -67,7 +67,9 @@ class DeviceFolderPage extends StatelessWidget {
       child: GalleryFilesState(
         child: Scaffold(
           appBar: PreferredSize(
-            preferredSize: const Size.fromHeight(50.0),
+            preferredSize: const Size.fromHeight(
+              GalleryAppBarWidget.toolbarHeight,
+            ),
             child: GalleryAppBarWidget(
               GalleryType.localFolder,
               deviceCollection.name,
@@ -143,11 +145,12 @@ class _BackupHeaderWidgetState extends State<BackupHeaderWidget> {
                     );
                     try {
                       await RemoteSyncService.instance
-                          .updateDeviceFolderSyncStatus(
-                        {widget.deviceCollection.id: !shouldBackup.value},
+                          .updateDeviceFolderSyncStatus({
+                            widget.deviceCollection.id: !shouldBackup.value,
+                          });
+                      await backupPreferenceService.setHasManualFolderSelection(
+                        true,
                       );
-                      await backupPreferenceService
-                          .setHasManualFolderSelection(true);
                       if (mounted) {
                         setState(() {
                           shouldBackup.value = !shouldBackup.value;
@@ -168,8 +171,9 @@ class _BackupHeaderWidgetState extends State<BackupHeaderWidget> {
                   return MenuSectionDescriptionWidget(
                     content: value
                         ? AppLocalizations.of(context).deviceFilesAutoUploading
-                        : AppLocalizations.of(context)
-                            .turnOnBackupForAutoUpload,
+                        : AppLocalizations.of(
+                            context,
+                          ).turnOnBackupForAutoUpload,
                   );
                 },
               ),
@@ -182,9 +186,9 @@ class _BackupHeaderWidgetState extends State<BackupHeaderWidget> {
                       shouldBackup.value) {
                     shouldShowReset = true;
                   } else if (snapshot.hasError) {
-                    Logger("BackupHeaderWidget").severe(
-                      "Could not check if collection has ignored files",
-                    );
+                    Logger(
+                      "BackupHeaderWidget",
+                    ).severe("Could not check if collection has ignored files");
                   }
                   return AnimatedCrossFade(
                     firstCurve: Curves.easeInOutExpo,
@@ -215,8 +219,7 @@ class _BackupHeaderWidgetState extends State<BackupHeaderWidget> {
       Configuration.instance.getUserID(),
       galleryLoadStartTime,
       galleryLoadEndTime,
-    ))
-        .files;
+    )).files;
   }
 
   Future<bool> _hasIgnoredFiles(
@@ -229,8 +232,9 @@ class _BackupHeaderWidgetState extends State<BackupHeaderWidget> {
       return false;
     }
     for (EnteFile file in deviceCollectionFiles) {
-      final String? ignoreID =
-          IgnoredFilesService.instance.getIgnoredIDForFile(file);
+      final String? ignoreID = IgnoredFilesService.instance.getIgnoredIDForFile(
+        file,
+      );
       if (ignoreID != null && allIgnoredIDs.containsKey(ignoreID)) {
         return true;
       }
@@ -268,9 +272,7 @@ class _ResetIgnoredFilesWidgetState extends State<ResetIgnoredFilesWidget> {
           leadingIcon: Icons.cloud_off_outlined,
           alwaysShowSuccessState: true,
           onTap: () async {
-            await _removeFilesFromIgnoredFiles(
-              widget.filesInDeviceCollection,
-            );
+            await _removeFilesFromIgnoredFiles(widget.filesInDeviceCollection);
             // ignore: unawaited_futures
             RemoteSyncService.instance.sync(silently: true).then((value) {
               if (mounted) {
@@ -290,7 +292,8 @@ class _ResetIgnoredFilesWidgetState extends State<ResetIgnoredFilesWidget> {
     Future<List<EnteFile>> filesInDeviceCollection,
   ) async {
     final List<EnteFile> deviceCollectionFiles = await filesInDeviceCollection;
-    await IgnoredFilesService.instance
-        .removeIgnoredMappings(deviceCollectionFiles);
+    await IgnoredFilesService.instance.removeIgnoredMappings(
+      deviceCollectionFiles,
+    );
   }
 }

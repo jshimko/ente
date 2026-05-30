@@ -2,6 +2,12 @@
     "name": "twoof3",
     "version": "0.0.0",
     "private": true,
+    "scripts": {
+        "build": "next build --no-lint",
+        "dev": "next dev -p 3009",
+        "lint": "eslint .",
+        "tsc": "tsc --noEmit"
+    },
     "dependencies": {
         "@fontsource/space-grotesk": "^5.2.10",
         "ente-base": "*",

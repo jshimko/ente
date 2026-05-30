@@ -2,11 +2,9 @@
 
 The sweetness of Ente Photos, right on your computer. Linux, Windows and macOS.
 
-You can
-[**download** a pre-built binary from releases](https://github.com/ente-io/photos-desktop/releases/latest).
+You can [**download** a pre-built binary from releases](https://github.com/ente-io/photos-desktop/releases/latest).
 
-To know more about Ente, see [our main README](../README.md) or visit
-[ente.com](https://ente.com).
+To know more about Ente, see [our main README](../README.md) or visit [ente.com](https://ente.com).
 
 ## Building from source
 
@@ -17,27 +15,22 @@ git clone https://github.com/ente-io/ente
 cd ente/desktop
 ```
 
-Install dependencies (requires Yarn v1):
+Install dependencies:
 
 ```sh
-yarn install --frozen-lockfile
+npm ci
 ```
 
-Use plain `yarn install` only when you are intentionally updating dependencies
-and reviewing the resulting `yarn.lock` changes.
-
-Now you can run in development mode (supports hot reload for the renderer
-process)
+Now you can run in development mode (supports hot reload for the renderer process)
 
 ```sh
-yarn dev
+npm run dev
 ```
 
 Or create a binary for your platform
 
 ```sh
-yarn build
+npm run build
 ```
 
-That's the gist of it. For more development related documentation, see
-[docs](docs/README.md).
+That's the gist of it. For more development related documentation, see [docs](docs/README.md).

@@ -2,6 +2,10 @@
     "name": "ente-accounts-rs",
     "version": "0.0.0",
     "private": true,
+    "scripts": {
+        "lint": "eslint .",
+        "tsc": "tsc --noEmit"
+    },
     "dependencies": {
         "ente-base": "*",
         "ente-wasm": "*",

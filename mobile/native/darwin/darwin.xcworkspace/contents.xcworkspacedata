@@ -107,10 +107,10 @@
          </FileRef>
       </Group>
       <Group
-         location = "group:ensu"
-         name = "ensu">
+         location = "group:Ensu"
+         name = "Ensu">
          <FileRef
-            location = "group:ensu.xcodeproj">
+            location = "group:Ensu.xcodeproj">
          </FileRef>
       </Group>
    </Group>
@@ -119,9 +119,6 @@
       name = "Packages">
       <FileRef
          location = "group:EnteNetwork">
-      </FileRef>
-      <FileRef
-         location = "group:EnteCast">
       </FileRef>
       <Group
          location = "group:EnteConfiguration"
@@ -133,9 +130,6 @@
       </Group>
       <FileRef
          location = "group:EnteCore">
-      </FileRef>
-      <FileRef
-         location = "group:EnteCrypto">
       </FileRef>
    </Group>
 </Workspace>

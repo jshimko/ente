@@ -14,7 +14,7 @@ import {
 import { downloadAndSaveFiles } from "ente-gallery/services/save";
 import type { Collection } from "ente-media/collection";
 import type { EnteFile } from "ente-media/file";
-import { fileCreationTime, fileFileName } from "ente-media/file-metadata";
+import { fileCreationPhotoDate, fileFileName } from "ente-media/file-metadata";
 import { useSettingsSnapshot } from "ente-new/photos/components/utils/use-snapshot";
 import { moveToTrash } from "ente-new/photos/services/collection";
 import type { CollectionSummary } from "ente-new/photos/services/collection-summary";
@@ -35,6 +35,18 @@ export type FileListWithViewerProps = {
      * The list of files to show.
      */
     files: EnteFile[];
+    /**
+     * Additional source data for deriving Map View files. Defaults to using
+     * {@link files} directly.
+     */
+    mapFileSource?: {
+        collectionFiles: EnteFile[];
+        favoriteFileIDs: Set<number>;
+        hiddenFileIDs: Set<number>;
+        archivedFileIDs: Set<number>;
+        tempDeletedFileIDs: Set<number>;
+        tempHiddenFileIDs: Set<number>;
+    };
     enableDownload?: boolean;
     enableImageEditing?: boolean;
     /**
@@ -95,7 +107,6 @@ export type FileListWithViewerProps = {
     FileListProps,
     | "mode"
     | "modePlus"
-    | "layout"
     | "header"
     | "footer"
     | "disableGrouping"
@@ -140,7 +151,6 @@ export type FileListWithViewerProps = {
 export const FileListWithViewer: React.FC<FileListWithViewerProps> = ({
     mode,
     modePlus,
-    layout,
     header,
     footer,
     user,
@@ -188,6 +198,7 @@ export const FileListWithViewer: React.FC<FileListWithViewerProps> = ({
     pendingFileSidebar,
     pendingHighlightCommentID,
     onPendingNavigationConsumed,
+    mapFileSource,
 }) => {
     const [openFileViewer, setOpenFileViewer] = useState(false);
     const [currentIndex, setCurrentIndex] = useState(0);
@@ -338,7 +349,6 @@ export const FileListWithViewer: React.FC<FileListWithViewerProps> = ({
                         {...{
                             mode,
                             modePlus,
-                            layout,
                             header: headerWithMap,
                             footer,
                             user,
@@ -407,6 +417,7 @@ export const FileListWithViewer: React.FC<FileListWithViewerProps> = ({
                     collectionSummary={activeCollectionSummary}
                     activeCollection={activeCollection}
                     files={files}
+                    mapFileSource={mapFileSource}
                     onRemotePull={onRemotePull}
                     {...{
                         onAddSaveGroup,
@@ -416,6 +427,7 @@ export const FileListWithViewer: React.FC<FileListWithViewerProps> = ({
                         onVisualFeedback,
                         fileNormalCollectionIDs,
                         collectionNameByID,
+                        emailByUserID,
                         onSelectCollection,
                         onSelectPerson,
                     }}
@@ -461,7 +473,7 @@ const MapIcon = styled("img")<{ $isDarkMode: boolean }>(
  * See: [Note: Timeline date string]
  */
 const fileTimelineDateString = (file: EnteFile) => {
-    const date = new Date(fileCreationTime(file) / 1000);
+    const date = fileCreationPhotoDate(file);
     return isSameDay(date, new Date())
         ? t("today")
         : isSameDay(date, new Date(Date.now() - 24 * 60 * 60 * 1000))

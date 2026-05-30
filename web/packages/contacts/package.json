@@ -5,9 +5,14 @@
     "main": "./index.ts",
     "types": "./index.ts",
     "scripts": {
-        "test": "vitest --run"
+        "tsc": "tsc --noEmit",
+        "lint": "eslint .",
+        "lint-fix": "eslint . --fix"
     },
     "dependencies": {
+        "@mui/icons-material": "^7.3.4",
+        "@mui/material": "^7.3.4",
+        "ente-accounts-rs": "*",
         "ente-base": "*",
         "ente-wasm": "*",
         "react": "^19.2.0",
@@ -15,7 +20,6 @@
     },
     "devDependencies": {
         "@types/react": "^19.2.2",
-        "ente-build-config": "*",
-        "vitest": "^3.2.4"
+        "ente-build-config": "*"
     }
 }

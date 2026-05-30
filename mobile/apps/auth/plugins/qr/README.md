@@ -1,4 +1,4 @@
-# ente_qr
+# ente_auth_qr
 
 A Flutter plugin for scanning QR codes from image files. This plugin provides a simple interface to scan QR codes from images on both Android and iOS platforms.
 
@@ -13,7 +13,7 @@ A Flutter plugin for scanning QR codes from image files. This plugin provides a 
 ## Platform Support
 
 | Platform | Support |
-|----------|---------|
+| -------- | ------- |
 | Android  | ✅      |
 | iOS      | ✅      |
 | Web      | ❌      |
@@ -27,8 +27,8 @@ Add this to your package's `pubspec.yaml` file:
 
 ```yaml
 dependencies:
-  ente_qr:
-    path: path/to/ente_qr
+  ente_auth_qr:
+    path: path/to/ente_auth_qr
 ```
 
 ## Usage
@@ -36,7 +36,7 @@ dependencies:
 ### Basic Usage
 
 ```dart
-import 'package:ente_qr/ente_qr.dart';
+import 'package:ente_auth_qr/ente_qr.dart';
 
 final qr = EnteQr();
 
@@ -54,7 +54,7 @@ if (result.success) {
 
 ```dart
 import 'package:flutter/material.dart';
-import 'package:ente_qr/ente_qr.dart';
+import 'package:ente_auth_qr/ente_qr.dart';
 import 'package:file_picker/file_picker.dart';
 
 class QrScannerPage extends StatefulWidget {
@@ -75,10 +75,10 @@ class _QrScannerPageState extends State<QrScannerPage> {
 
     if (fileResult != null && fileResult.files.single.path != null) {
       final imagePath = fileResult.files.single.path!;
-      
+
       // Scan QR code from the selected image
       final qrResult = await _enteQr.scanQrFromImage(imagePath);
-      
+
       setState(() {
         if (qrResult.success) {
           _result = 'QR Code: ${qrResult.content}';
@@ -120,9 +120,11 @@ The main class for QR code scanning operations.
 Scans a QR code from an image file.
 
 **Parameters:**
+
 - `imagePath` (String): The file path to the image containing the QR code
 
 **Returns:**
+
 - `Future<QrScanResult>`: A result object containing either the QR code content or an error
 
 ### QrScanResult
@@ -130,11 +132,13 @@ Scans a QR code from an image file.
 The result object returned by QR scanning operations.
 
 **Properties:**
+
 - `content` (String?): The QR code content if successful, null otherwise
-- `error` (String?): Error message if scanning failed, null otherwise  
+- `error` (String?): Error message if scanning failed, null otherwise
 - `success` (bool): Whether the scanning operation was successful
 
 **Factory Constructors:**
+
 - `QrScanResult.success(String content)`: Creates a successful result
 - `QrScanResult.error(String error)`: Creates an error result
 
@@ -143,6 +147,7 @@ The result object returned by QR scanning operations.
 ### Android
 
 The Android implementation uses the ZXing library (com.google.zxing) for QR code detection:
+
 - `com.journeyapps:zxing-android-embedded:4.3.0`
 - `com.google.zxing:core:3.5.1`
 
@@ -153,6 +158,7 @@ The iOS implementation uses Core Image framework's built-in QR code detection ca
 ## Error Handling
 
 The plugin provides comprehensive error handling for common scenarios:
+
 - File not found
 - Invalid image format
 - No QR code found in image

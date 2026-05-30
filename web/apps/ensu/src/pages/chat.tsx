@@ -6,10 +6,10 @@ import {
     Drawer,
     IconButton,
     Stack,
+    Typography,
     useMediaQuery,
 } from "@mui/material";
 import { getLuminance, useTheme } from "@mui/material/styles";
-import { open as openFileDialog, save } from "@tauri-apps/api/dialog";
 import { ChatComposer } from "components/chat/ChatComposer";
 import { ChatDialogs } from "components/chat/ChatDialogs";
 import { ChatMessageList } from "components/chat/ChatMessageList";
@@ -92,6 +92,7 @@ import {
     masterKeyFromSession,
     updateSessionFromTauriSecureStorageIfNeeded,
 } from "services/session";
+import { isTauriRuntime as detectTauriAppRuntime } from "services/tauri-runtime";
 
 const formatTime = (timestamp: number) => {
     const date = new Date(Math.floor(timestamp / 1000));
@@ -108,6 +109,68 @@ const DEFAULT_WEB_CONTEXT_SIZE = 4096;
 const ADVANCED_SETTINGS_UNLOCK_KEY = "ensu.advancedSettingsUnlocked";
 const MODEL_SETTINGS_STORAGE_KEY = "ensu.modelSettings";
 const SYSTEM_PROMPT_STORAGE_KEY = "ensu.systemPrompt";
+
+interface TauriCommandError {
+    code?: string;
+    message?: string;
+}
+
+const tauriCommandError = (error: unknown): TauriCommandError => {
+    if (!error || typeof error != "object") return {};
+    const record = error as Record<string, unknown>;
+    return {
+        code: typeof record.code == "string" ? record.code : undefined,
+        message: typeof record.message == "string" ? record.message : undefined,
+    };
+};
+
+const formatImageProcessingErrorForLog = (error: unknown) => {
+    const { code, message } = tauriCommandError(error);
+    if (code == "io") return "io: selected image file could not be read";
+    if (code && message) return `${code}: ${message}`;
+    if (message) return message;
+    if (error instanceof Error) return error.message;
+    if (typeof error == "string") return error;
+    return String(error);
+};
+
+const imageProcessingFailureDialog = (
+    error: unknown,
+    selectedImageCount: number,
+) => {
+    const { code, message } = tauriCommandError(error);
+    const lowerMessage = message?.toLowerCase() ?? "";
+    const subject =
+        selectedImageCount == 1
+            ? "The selected image"
+            : "One of the selected images";
+
+    if (code == "image" && lowerMessage.includes("memory limit")) {
+        return {
+            title: "Image too large",
+            message: `${subject} is too large for Ensu to process. Try resizing it or exporting a smaller copy, then attach it again.`,
+        };
+    }
+
+    if (code == "image") {
+        return {
+            title: "Image could not be attached",
+            message: `${subject} could not be decoded. Try converting it to a different image format, then attach it again.`,
+        };
+    }
+
+    if (code == "io") {
+        return {
+            title: "Image file could not be read",
+            message: `${subject} could not be read. Check that the file still exists and try again.`,
+        };
+    }
+
+    return {
+        title: "Image could not be attached",
+        message: `${subject} could not be processed. Try a different image or attach it again after resizing it.`,
+    };
+};
 
 const loadingPhraseVerbs = [
     "Generating",
@@ -155,9 +218,6 @@ const randomLoadingPhrase = () => {
 
 const MEDIA_MARKER = "<__media__>";
 const IMAGE_TOKEN_ESTIMATE = 768;
-const MAX_INFERENCE_IMAGE_PIXELS = 1_500_000;
-const MAX_INFERENCE_IMAGE_LONG_EDGE = 2048;
-const INFERENCE_IMAGE_QUALITY = 0.92;
 const IMAGE_SELECTOR_EXTENSIONS = [
     "png",
     "jpg",
@@ -172,6 +232,7 @@ const IMAGE_SELECTOR_EXTENSIONS = [
 const IMAGE_SELECTOR_ACCEPT = IMAGE_SELECTOR_EXTENSIONS.map(
     (ext) => `.${ext}`,
 ).join(",");
+const MAX_IMAGE_ATTACHMENTS_PER_MESSAGE = 2;
 
 const buildPromptWithImages = (text: string, imageCount: number) => {
     if (imageCount <= 0) return text;
@@ -275,267 +336,16 @@ const buildPromptWithDocuments = (
     return promptText ? `${promptText}\n\n${blocks}` : blocks;
 };
 
-const sanitizeImageExtension = (filename?: string) => {
-    if (!filename) return undefined;
-    const extension = filename.split(".").pop();
-    if (!extension) return undefined;
-    const cleaned = extension.replace(/[^a-z0-9]+/gi, "");
-    return cleaned || undefined;
-};
-
-const isJpegExtension = (extension?: string) => {
-    const lower = extension?.toLowerCase();
-    return lower === "jpg" || lower === "jpeg";
-};
-
-const prepareInferenceImageBytes = async (
-    image: ImageAttachment,
-    maxPixels: number,
-) => {
-    const originalBytes = new Uint8Array(await image.file.arrayBuffer());
-    const originalExtension = sanitizeImageExtension(image.name);
-
-    if (typeof document === "undefined") {
-        return { bytes: originalBytes, extension: originalExtension };
-    }
-
-    const encodeToJpeg = async (
-        width: number,
-        height: number,
-        draw: (ctx: CanvasRenderingContext2D, w: number, h: number) => void,
-    ) => {
-        const canvas = document.createElement("canvas");
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext("2d");
-        if (!ctx) {
-            return null;
-        }
-        ctx.imageSmoothingEnabled = true;
-        ctx.imageSmoothingQuality = "high";
-        draw(ctx, width, height);
-        const blob = await new Promise<Blob>((resolve, reject) => {
-            canvas.toBlob(
-                (result) => {
-                    if (result) {
-                        resolve(result);
-                    } else {
-                        reject(new Error("Failed to encode image"));
-                    }
-                },
-                "image/jpeg",
-                INFERENCE_IMAGE_QUALITY,
-            );
-        });
-        const bytes = new Uint8Array(await blob.arrayBuffer());
-        return {
-            bytes,
-            extension: "jpg" as const,
-            resizedWidth: width,
-            resizedHeight: height,
-        };
-    };
-
-    const resizeToJpeg = async (
-        width: number,
-        height: number,
-        draw: (ctx: CanvasRenderingContext2D, w: number, h: number) => void,
-    ) => {
-        const totalPixels = width * height;
-        const maxPixelCount = Math.max(1, maxPixels);
-        const longestEdge = Math.max(width, height);
-
-        const areaScale =
-            totalPixels > maxPixelCount
-                ? Math.sqrt(maxPixelCount / totalPixels)
-                : 1;
-        const edgeScale =
-            longestEdge > MAX_INFERENCE_IMAGE_LONG_EDGE
-                ? MAX_INFERENCE_IMAGE_LONG_EDGE / longestEdge
-                : 1;
-
-        const scale = Math.min(1, areaScale, edgeScale);
-        if (scale >= 0.999) {
-            return null;
-        }
-
-        const targetWidth = Math.max(1, Math.round(width * scale));
-        const targetHeight = Math.max(1, Math.round(height * scale));
-        return encodeToJpeg(targetWidth, targetHeight, draw);
-    };
-
-    const loadImage = async () => {
-        return await new Promise<HTMLImageElement>((resolve, reject) => {
-            const url = URL.createObjectURL(image.file);
-            const img = new Image();
-            const cleanup = () => URL.revokeObjectURL(url);
-            img.onload = () => {
-                cleanup();
-                resolve(img);
-            };
-            img.onerror = () => {
-                cleanup();
-                reject(new Error("Failed to decode image"));
-            };
-            img.src = url;
-        });
-    };
-
-    try {
-        const img = await loadImage();
-        const { width, height } = img;
-        if (!width || !height) {
-            throw new Error("Decoded image has invalid dimensions");
-        }
-        const resized = await resizeToJpeg(width, height, (ctx, w, h) => {
-            ctx.drawImage(img, 0, 0, w, h);
-        });
-        if (resized) {
-            log.info("Prepared inference image", {
-                id: image.id,
-                name: image.name,
-                maxPixels,
-                originalWidth: width,
-                originalHeight: height,
-                resizedWidth: resized.resizedWidth,
-                resizedHeight: resized.resizedHeight,
-                originalBytes: originalBytes.length,
-                resizedBytes: resized.bytes.length,
-            });
-            return { bytes: resized.bytes, extension: resized.extension };
-        }
-        if (width * height > maxPixels) {
-            throw new Error("Image too large to resize for inference");
-        }
-
-        if (isJpegExtension(originalExtension)) {
-            log.info("Prepared inference image (no resize)", {
-                id: image.id,
-                name: image.name,
-                maxPixels,
-                width,
-                height,
-                bytes: originalBytes.length,
-            });
-            return { bytes: originalBytes, extension: originalExtension };
-        }
-
-        const converted = await encodeToJpeg(width, height, (ctx, w, h) => {
-            ctx.drawImage(img, 0, 0, w, h);
-        });
-
-        if (converted) {
-            log.info("Prepared inference image (format normalized)", {
-                id: image.id,
-                name: image.name,
-                maxPixels,
-                width,
-                height,
-                originalBytes: originalBytes.length,
-                resizedBytes: converted.bytes.length,
-                originalExtension,
-            });
-            return { bytes: converted.bytes, extension: converted.extension };
-        }
-
-        return { bytes: originalBytes, extension: originalExtension };
-    } catch (error) {
-        log.error("Failed to decode image for inference", error);
-        if (typeof createImageBitmap !== "undefined") {
-            try {
-                const bitmap = await createImageBitmap(image.file);
-                try {
-                    const resized = await resizeToJpeg(
-                        bitmap.width,
-                        bitmap.height,
-                        (ctx, w, h) => {
-                            ctx.drawImage(bitmap, 0, 0, w, h);
-                        },
-                    );
-                    if (resized) {
-                        log.info("Prepared inference image (bitmap fallback)", {
-                            id: image.id,
-                            name: image.name,
-                            originalWidth: bitmap.width,
-                            originalHeight: bitmap.height,
-                            resizedWidth: resized.resizedWidth,
-                            resizedHeight: resized.resizedHeight,
-                            originalBytes: originalBytes.length,
-                            resizedBytes: resized.bytes.length,
-                        });
-                        return {
-                            bytes: resized.bytes,
-                            extension: resized.extension,
-                        };
-                    }
-                    if (bitmap.width * bitmap.height > maxPixels) {
-                        throw new Error(
-                            "Image too large to resize for inference",
-                        );
-                    }
-
-                    if (isJpegExtension(originalExtension)) {
-                        log.info(
-                            "Prepared inference image (bitmap no resize)",
-                            {
-                                id: image.id,
-                                name: image.name,
-                                width: bitmap.width,
-                                height: bitmap.height,
-                                bytes: originalBytes.length,
-                            },
-                        );
-                        return {
-                            bytes: originalBytes,
-                            extension: originalExtension,
-                        };
-                    }
-
-                    const converted = await encodeToJpeg(
-                        bitmap.width,
-                        bitmap.height,
-                        (ctx, w, h) => {
-                            ctx.drawImage(bitmap, 0, 0, w, h);
-                        },
-                    );
-
-                    if (converted) {
-                        log.info(
-                            "Prepared inference image (bitmap format normalized)",
-                            {
-                                id: image.id,
-                                name: image.name,
-                                width: bitmap.width,
-                                height: bitmap.height,
-                                originalBytes: originalBytes.length,
-                                resizedBytes: converted.bytes.length,
-                                originalExtension,
-                            },
-                        );
-                        return {
-                            bytes: converted.bytes,
-                            extension: converted.extension,
-                        };
-                    }
-
-                    return {
-                        bytes: originalBytes,
-                        extension: originalExtension,
-                    };
-                } finally {
-                    bitmap.close();
-                }
-            } catch (bitmapError) {
-                log.error(
-                    "Failed to resize image with ImageBitmap",
-                    bitmapError,
-                );
-            }
-        }
-        throw error instanceof Error
-            ? error
-            : new Error("Unable to prepare image for inference");
-    }
+const normalizedJpegAttachmentName = (filename?: string) => {
+    const raw =
+        filename
+            ?.replace(/\0/g, "")
+            .replace(/\\/g, "/")
+            .split("/")
+            .pop()
+            ?.trim() || "image";
+    const base = raw.replace(/\.[^/.]+$/, "").trim() || "image";
+    return `${base}.jpg`;
 };
 
 const formatBytes = (bytes: number) => {
@@ -612,12 +422,7 @@ const groupSessionsByDate = (sessions: ChatSession[]) => {
     ).filter(([, group]) => group.length > 0);
 };
 
-const detectTauriRuntime = () =>
-    typeof window !== "undefined" &&
-    ("__TAURI__" in window ||
-        "__TAURI_IPC__" in window ||
-        "__TAURI_INTERNALS__" in window ||
-        "__TAURI_METADATA__" in window);
+const detectTauriRuntime = () => detectTauriAppRuntime();
 
 const Page: React.FC = () => {
     const router = useRouter();
@@ -750,6 +555,7 @@ const Page: React.FC = () => {
         bgcolor: "transparent",
         color: "text.base",
         "&:hover": { bgcolor: "fill.faint" },
+        "&.Mui-disabled": { color: "text.faint" },
     } as const;
     const smallIconProps = { size: 24, strokeWidth: 2 } as const;
     const actionIconProps = { size: 24, strokeWidth: 2 } as const;
@@ -843,6 +649,13 @@ const Page: React.FC = () => {
     const [pendingImagePreviews, setPendingImagePreviews] = useState<
         Record<string, string>
     >({});
+    const [isImageDragActive, setIsImageDragActive] = useState(false);
+    const [isProcessingDroppedImages, setIsProcessingDroppedImages] =
+        useState(false);
+    const [imagePreview, setImagePreview] = useState<{
+        url: string;
+        name: string;
+    } | null>(null);
     const [downloadStatus, setDownloadStatus] =
         useState<DownloadProgress | null>(null);
     const [loadedModelName, setLoadedModelName] = useState<string | null>(null);
@@ -873,6 +686,7 @@ const Page: React.FC = () => {
     const inputRef = useRef<HTMLTextAreaElement | null>(null);
     const attachmentPreviewUrlsRef = useRef<Record<string, string>>({});
     const pendingPreviewUrlsRef = useRef<Record<string, string>>({});
+    const imagePreviewUrlRef = useRef<string | null>(null);
     const attachmentPreviewInFlightRef = useRef<Record<string, Promise<void>>>(
         {},
     );
@@ -923,10 +737,9 @@ const Page: React.FC = () => {
         if (Array.isArray(value)) return value[0];
         return typeof value === "string" ? value : undefined;
     }, [router.isReady, router.query.session]);
-
-    const buildVersion = process.env.NEXT_PUBLIC_ENSU_VERSION
-        ? `v${process.env.NEXT_PUBLIC_ENSU_VERSION}`
-        : "dev";
+    const buildVersion = process.env.NEXT_PUBLIC_ENSU_DESKTOP_VERSION
+        ? `v${process.env.NEXT_PUBLIC_ENSU_DESKTOP_VERSION}`
+        : undefined;
 
     const lastRouteUpdateRef = useRef<{ sessionId?: string; at: number }>({
         sessionId: undefined,
@@ -2199,23 +2012,18 @@ const Page: React.FC = () => {
         async (images: ImageAttachment[]) => {
             if (!isTauriRuntime || images.length === 0) return [] as string[];
             const { appDataDir, join } = await import("@tauri-apps/api/path");
-            const { createDir, writeBinaryFile } = await import(
-                "@tauri-apps/api/fs"
-            );
+            const { mkdir, writeFile } = await import("@tauri-apps/plugin-fs");
             const root = await appDataDir();
             const dir = await join(root, "ensu_llmchat_inference_images");
-            await createDir(dir, { recursive: true });
+            await mkdir(dir, { recursive: true });
 
             const paths = await Promise.all(
                 images.map(async (image) => {
-                    const { bytes, extension } =
-                        await prepareInferenceImageBytes(
-                            image,
-                            MAX_INFERENCE_IMAGE_PIXELS,
-                        );
-                    const suffix = extension ? `.${extension}` : ".jpg";
-                    const path = await join(dir, `${image.id}${suffix}`);
-                    await writeBinaryFile({ path, contents: bytes });
+                    const bytes = new Uint8Array(
+                        await image.file.arrayBuffer(),
+                    );
+                    const path = await join(dir, `${image.id}.jpg`);
+                    await writeFile(path, bytes);
                     return path;
                 }),
             );
@@ -2228,11 +2036,11 @@ const Page: React.FC = () => {
     const cleanupInferenceImages = useCallback(
         async (paths: string[]) => {
             if (!isTauriRuntime || paths.length === 0) return;
-            const { removeFile } = await import("@tauri-apps/api/fs");
+            const { remove } = await import("@tauri-apps/plugin-fs");
             await Promise.all(
                 paths.map(async (path) => {
                     try {
-                        await removeFile(path);
+                        await remove(path);
                     } catch {
                         // ignore cleanup failures
                     }
@@ -2429,6 +2237,20 @@ const Page: React.FC = () => {
             showMiniDialog({ title: "Model error", message });
         }
     }, [ensureProvider, formatErrorMessage, getModelSettings, showMiniDialog]);
+
+    const prewarmSelectedImageInference = useCallback(() => {
+        if (!isTauriRuntime) return;
+        void (async () => {
+            try {
+                const provider = await ensureProvider();
+                await provider.prewarmImageInferenceIfAvailable(
+                    getModelSettings(),
+                );
+            } catch (error) {
+                log.error("Failed to prewarm image inference", error);
+            }
+        })();
+    }, [ensureProvider, getModelSettings, isTauriRuntime]);
 
     useEffect(() => {
         if (!firstPaintDone) return;
@@ -2825,6 +2647,14 @@ const Page: React.FC = () => {
         [showToast],
     );
 
+    const closeImagePreview = useCallback(() => {
+        setImagePreview(null);
+        if (imagePreviewUrlRef.current) {
+            URL.revokeObjectURL(imagePreviewUrlRef.current);
+            imagePreviewUrlRef.current = null;
+        }
+    }, []);
+
     const handleOpenAttachment = useCallback(
         async (message: ChatMessage, attachment: ChatAttachment) => {
             if (!chatKey) return;
@@ -2848,30 +2678,37 @@ const Page: React.FC = () => {
                         ? `${baseName.replace(/\.[^/.]+$/, "")}.txt`
                         : `${baseName}.txt`;
 
+                if (treatAsImage) {
+                    const mime = inferImageMime(baseName);
+                    const blob = new Blob([toSafeBlobPart(bytes)], {
+                        type: mime,
+                    });
+                    const url = URL.createObjectURL(blob);
+                    if (imagePreviewUrlRef.current) {
+                        URL.revokeObjectURL(imagePreviewUrlRef.current);
+                    }
+                    imagePreviewUrlRef.current = url;
+                    setImagePreview({ url, name: baseName });
+                    return;
+                }
+
                 if (isTauriRuntime) {
                     const [
                         { appDataDir, join },
-                        { createDir, writeBinaryFile },
-                        { open },
+                        { mkdir, writeFile },
+                        { openPath },
                     ] = await Promise.all([
                         import("@tauri-apps/api/path"),
-                        import("@tauri-apps/api/fs"),
-                        import("@tauri-apps/api/shell"),
+                        import("@tauri-apps/plugin-fs"),
+                        import("@tauri-apps/plugin-opener"),
                     ]);
                     const root = await appDataDir();
                     const dir = await join(root, "ensu_llmchat_attachments_v2");
-                    await createDir(dir, { recursive: true });
+                    await mkdir(dir, { recursive: true });
                     const filePath = await join(dir, filename);
 
-                    await writeBinaryFile({ path: filePath, contents: bytes });
-
-                    const normalizedPath = filePath.replace(/\\/g, "/");
-                    const fileUrl = new URL("file:///");
-                    fileUrl.pathname = normalizedPath.startsWith("/")
-                        ? normalizedPath
-                        : `/${normalizedPath}`;
-                    const openTarget = fileUrl.toString();
-                    await open(openTarget);
+                    await writeFile(filePath, bytes);
+                    await openPath(filePath);
                     return;
                 }
 
@@ -2885,12 +2722,6 @@ const Page: React.FC = () => {
                     window.setTimeout(() => URL.revokeObjectURL(url), 1000);
                     return;
                 }
-
-                const mime = inferImageMime(baseName);
-                const blob = new Blob([toSafeBlobPart(bytes)], { type: mime });
-                const url = URL.createObjectURL(blob);
-                window.open(url, "_blank", "noopener");
-                window.setTimeout(() => URL.revokeObjectURL(url), 1000);
             } catch (error) {
                 log.error("Failed to open attachment", error);
                 showMiniDialog({
@@ -2902,6 +2733,15 @@ const Page: React.FC = () => {
         },
         [chatKey, inferImageMime, isTauriRuntime, showMiniDialog],
     );
+
+    useEffect(() => {
+        return () => {
+            if (imagePreviewUrlRef.current) {
+                URL.revokeObjectURL(imagePreviewUrlRef.current);
+                imagePreviewUrlRef.current = null;
+            }
+        };
+    }, []);
 
     const flushStreamingText = useCallback(() => {
         if (streamingFlushTimerRef.current) {
@@ -3492,15 +3332,16 @@ const Page: React.FC = () => {
 
         if (isTauriRuntime) {
             try {
+                const { save } = await import("@tauri-apps/plugin-dialog");
                 const filename = `ensu-web-logs-${Date.now()}.txt`;
                 const path = await save({
                     defaultPath: filename,
                     filters: [{ name: "Logs", extensions: ["txt"] }],
                 });
                 if (!path) return;
-                const { writeBinaryFile } = await import("@tauri-apps/api/fs");
+                const { writeFile } = await import("@tauri-apps/plugin-fs");
                 const encoded = new TextEncoder().encode(savedLogs());
-                await writeBinaryFile({ path, contents: encoded });
+                await writeFile(path, encoded);
                 return;
             } catch (error) {
                 log.error("Failed to export logs", error);
@@ -3556,7 +3397,7 @@ const Page: React.FC = () => {
     }, [advancedUnlocked]);
 
     // Hardcoded fallbacks used when Rust defaults are not available (web-only
-    // mode). These must stay in sync with rust/ensu/inference/src/defaults.rs.
+    // mode). These must stay in sync with rust/crates/ensu/inference/src/defaults.rs.
     const fallbackSuggestedModels = useMemo(
         () =>
             isTauriRuntime
@@ -3713,10 +3554,41 @@ const Page: React.FC = () => {
         onSelect: handleDocumentSelect,
         onCancel: handleDocumentCancel,
     });
+    const imageAttachmentSlotsRemaining = Math.max(
+        0,
+        MAX_IMAGE_ATTACHMENTS_PER_MESSAGE - pendingImages.length,
+    );
+    const isImageAttachmentLimitReached = imageAttachmentSlotsRemaining === 0;
+    const canHandleImageDrop =
+        showImageAttachment &&
+        !isGenerating &&
+        !isDownloading &&
+        !showModelGate;
+    const canAttachDroppedImages =
+        canHandleImageDrop &&
+        !isImageAttachmentLimitReached &&
+        !isProcessingDroppedImages;
+    const showImageDropOverlay =
+        canHandleImageDrop && (isImageDragActive || isProcessingDroppedImages);
+    const imageDropOverlayTitle = isProcessingDroppedImages
+        ? "Attaching images..."
+        : isImageAttachmentLimitReached
+          ? "Image limit reached"
+          : "Drop images to attach";
+    const imageDropOverlayDescription = isImageAttachmentLimitReached
+        ? `You can attach up to ${MAX_IMAGE_ATTACHMENTS_PER_MESSAGE} images per message.`
+        : "PNG, JPG, WebP, GIF, BMP, HEIC, HEIF, AVIF";
+
+    useEffect(() => {
+        if (!canHandleImageDrop) {
+            setIsImageDragActive(false);
+        }
+    }, [canHandleImageDrop]);
 
     const handleImageSelect = useCallback(
         (files: File[]) => {
             closeAttachmentMenu();
+            if (imageAttachmentSlotsRemaining <= 0) return;
             const images = files.map((file) => ({
                 id: createAttachmentId(),
                 name: file.name.replace(/\0/g, ""),
@@ -3724,10 +3596,17 @@ const Page: React.FC = () => {
                 file,
             }));
             if (images.length) {
-                setPendingImages((prev) => [...prev, ...images]);
+                setPendingImages((prev) => {
+                    const slotsRemaining = Math.max(
+                        0,
+                        MAX_IMAGE_ATTACHMENTS_PER_MESSAGE - prev.length,
+                    );
+                    if (slotsRemaining === 0) return prev;
+                    return [...prev, ...images.slice(0, slotsRemaining)];
+                });
             }
         },
-        [closeAttachmentMenu],
+        [closeAttachmentMenu, imageAttachmentSlotsRemaining],
     );
 
     const handleImageCancel = useCallback(() => {
@@ -3744,9 +3623,87 @@ const Page: React.FC = () => {
         onCancel: handleImageCancel,
     });
 
+    const processTauriImagePaths = useCallback(
+        async (selectedPaths: string[], source: "picker" | "drop") => {
+            if (imageAttachmentSlotsRemaining <= 0) return;
+            const pathsToProcess = selectedPaths.slice(
+                0,
+                imageAttachmentSlotsRemaining,
+            );
+            if (pathsToProcess.length === 0) {
+                handleImageCancel();
+                return;
+            }
+
+            const isDrop = source === "drop";
+            if (isDrop) setIsProcessingDroppedImages(true);
+
+            try {
+                const { invoke } = await import("@tauri-apps/api/core");
+                const files = await Promise.all(
+                    pathsToProcess.map(async (selectedPath) => {
+                        const normalized = selectedPath.replace(/\\/g, "/");
+                        const name =
+                            normalized.split("/").pop()?.replace(/\0/g, "") ||
+                            "image";
+                        const compressed = await invoke<number[]>(
+                            "chat_db_compress_attachment_image_file",
+                            { path: selectedPath },
+                        );
+                        const bytes = new Uint8Array(compressed);
+                        return new File(
+                            [toSafeBlobPart(bytes)],
+                            normalizedJpegAttachmentName(name),
+                            { type: "image/jpeg" },
+                        );
+                    }),
+                );
+
+                log.info(
+                    `Compressed ${source === "drop" ? "dropped" : "selected"} image attachments`,
+                    {
+                        count: files.length,
+                        totalBytes: files.reduce(
+                            (sum, file) => sum + file.size,
+                            0,
+                        ),
+                    },
+                );
+
+                if (files.length > 0) {
+                    handleImageSelect(files);
+                    prewarmSelectedImageInference();
+                } else {
+                    handleImageCancel();
+                }
+            } catch (error) {
+                log.error(
+                    `Failed to process ${source === "drop" ? "dropped" : "selected"} image attachment: ${formatImageProcessingErrorForLog(error)}`,
+                );
+                showMiniDialog(
+                    imageProcessingFailureDialog(error, pathsToProcess.length),
+                );
+                return;
+            } finally {
+                if (isDrop) setIsProcessingDroppedImages(false);
+            }
+        },
+        [
+            handleImageCancel,
+            handleImageSelect,
+            imageAttachmentSlotsRemaining,
+            prewarmSelectedImageInference,
+            showMiniDialog,
+        ],
+    );
+
     const openTauriImageSelector = useCallback(async () => {
         closeAttachmentMenu();
+        if (imageAttachmentSlotsRemaining <= 0) return;
         try {
+            const { open: openFileDialog } = await import(
+                "@tauri-apps/plugin-dialog"
+            );
             const selection = await openFileDialog({
                 directory: false,
                 multiple: true,
@@ -3768,26 +3725,7 @@ const Page: React.FC = () => {
                 handleImageCancel();
                 return;
             }
-
-            const { readBinaryFile } = await import("@tauri-apps/api/fs");
-            const files = await Promise.all(
-                selectedPaths.map(async (selectedPath) => {
-                    const normalized = selectedPath.replace(/\\/g, "/");
-                    const name =
-                        normalized.split("/").pop()?.replace(/\0/g, "") ||
-                        "image";
-                    const bytes = await readBinaryFile(selectedPath);
-                    return new File([toSafeBlobPart(bytes)], name, {
-                        type: inferImageMime(name),
-                    });
-                }),
-            );
-
-            if (files.length > 0) {
-                handleImageSelect(files);
-            } else {
-                handleImageCancel();
-            }
+            await processTauriImagePaths(selectedPaths, "picker");
         } catch (error) {
             log.error("Failed to open image picker", error);
             showMiniDialog({
@@ -3798,8 +3736,89 @@ const Page: React.FC = () => {
     }, [
         closeAttachmentMenu,
         handleImageCancel,
-        handleImageSelect,
-        inferImageMime,
+        imageAttachmentSlotsRemaining,
+        processTauriImagePaths,
+        showMiniDialog,
+    ]);
+
+    useEffect(() => {
+        if (!isTauriRuntime || !showImageAttachment) return;
+
+        let disposed = false;
+        let unlisten: (() => void) | undefined;
+
+        void import("@tauri-apps/api/webview")
+            .then(({ getCurrentWebview }) =>
+                getCurrentWebview().onDragDropEvent((event) => {
+                    if (
+                        event.payload.type === "enter" ||
+                        event.payload.type === "over"
+                    ) {
+                        if (canHandleImageDrop) {
+                            setIsImageDragActive(true);
+                        }
+                        return;
+                    }
+
+                    if (event.payload.type === "leave") {
+                        setIsImageDragActive(false);
+                        return;
+                    }
+
+                    setIsImageDragActive(false);
+                    if (!canHandleImageDrop) return;
+                    if (isImageAttachmentLimitReached) {
+                        showMiniDialog({
+                            title: "Image limit reached",
+                            message: `You can attach up to ${MAX_IMAGE_ATTACHMENTS_PER_MESSAGE} images per message.`,
+                        });
+                        return;
+                    }
+                    if (!canAttachDroppedImages) return;
+
+                    const imagePaths = event.payload.paths.filter((path) => {
+                        const lowerPath = path.toLowerCase();
+                        return IMAGE_SELECTOR_EXTENSIONS.some((extension) =>
+                            lowerPath.endsWith(`.${extension}`),
+                        );
+                    });
+                    if (imagePaths.length === 0) {
+                        showMiniDialog({
+                            title: "No supported images",
+                            message:
+                                "Drop PNG, JPG, WebP, GIF, BMP, HEIC, HEIF, or AVIF images.",
+                        });
+                        return;
+                    }
+
+                    void processTauriImagePaths(imagePaths, "drop");
+                }),
+            )
+            .then((dispose) => {
+                if (disposed) {
+                    dispose();
+                } else {
+                    unlisten = dispose;
+                }
+            })
+            .catch((error: unknown) => {
+                log.error(
+                    "Failed to subscribe to Tauri image drop events",
+                    error,
+                );
+            });
+
+        return () => {
+            disposed = true;
+            unlisten?.();
+        };
+    }, [
+        canAttachDroppedImages,
+        canHandleImageDrop,
+        isImageAttachmentLimitReached,
+        isTauriRuntime,
+        processTauriImagePaths,
+        showImageAttachment,
         showMiniDialog,
     ]);
 
@@ -3807,6 +3826,7 @@ const Page: React.FC = () => {
         (_event: React.MouseEvent<HTMLElement>) => {
             closeAttachmentMenu();
             if (showImageAttachment) {
+                if (isImageAttachmentLimitReached) return;
                 if (isTauriRuntime) {
                     void openTauriImageSelector();
                 } else {
@@ -3819,6 +3839,7 @@ const Page: React.FC = () => {
         [
             closeAttachmentMenu,
             isTauriRuntime,
+            isImageAttachmentLimitReached,
             openDocumentSelector,
             openImageSelector,
             openTauriImageSelector,
@@ -3828,15 +3849,20 @@ const Page: React.FC = () => {
 
     const handleAttachmentChoice = useCallback(
         (choice: "image" | "document") => {
+            closeAttachmentMenu();
             if (choice === "image") {
-                closeAttachmentMenu();
+                if (isImageAttachmentLimitReached) return;
                 openImageSelector();
             } else {
-                closeAttachmentMenu();
                 openDocumentSelector();
             }
         },
-        [closeAttachmentMenu, openDocumentSelector, openImageSelector],
+        [
+            closeAttachmentMenu,
+            isImageAttachmentLimitReached,
+            openDocumentSelector,
+            openImageSelector,
+        ],
     );
 
     const removePendingDocument = useCallback((id: string) => {
@@ -4391,6 +4417,9 @@ const Page: React.FC = () => {
                         closeAttachmentMenu={closeAttachmentMenu}
                         handleAttachmentChoice={handleAttachmentChoice}
                         showImageAttachment={showImageAttachment}
+                        isImageAttachmentLimitReached={
+                            isImageAttachmentLimitReached
+                        }
                         getDocumentInputProps={getDocumentInputProps}
                         getImageInputProps={getImageInputProps}
                         actionButtonSx={actionButtonSx}
@@ -4400,6 +4429,50 @@ const Page: React.FC = () => {
                         actionIconProps={actionIconProps}
                         stopButtonColor={theme.palette.error.main}
                     />
+                    {showImageDropOverlay && (
+                        <Box
+                            sx={{
+                                position: "absolute",
+                                inset: 0,
+                                zIndex: 40,
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                pointerEvents: "none",
+                                bgcolor: "rgba(0, 0, 0, 0.38)",
+                                backdropFilter: "blur(10px)",
+                                WebkitBackdropFilter: "blur(10px)",
+                            }}
+                        >
+                            <Stack
+                                sx={{
+                                    alignItems: "center",
+                                    gap: 0.75,
+                                    px: 3,
+                                    py: 2,
+                                    borderRadius: 2,
+                                    border: "1px solid rgba(255, 255, 255, 0.32)",
+                                    bgcolor: "rgba(0, 0, 0, 0.42)",
+                                    color: "#fff",
+                                    boxShadow:
+                                        "0 18px 48px rgba(0, 0, 0, 0.22)",
+                                }}
+                            >
+                                <Typography
+                                    variant="small"
+                                    sx={{ fontWeight: 700, color: "inherit" }}
+                                >
+                                    {imageDropOverlayTitle}
+                                </Typography>
+                                <Typography
+                                    variant="mini"
+                                    sx={{ color: "rgba(255, 255, 255, 0.78)" }}
+                                >
+                                    {imageDropOverlayDescription}
+                                </Typography>
+                            </Stack>
+                        </Box>
+                    )}
                 </Box>
             </Box>
 
@@ -4455,6 +4528,8 @@ const Page: React.FC = () => {
                 setSyncNotificationOpen={setSyncNotificationOpen}
                 syncNotification={syncNotification}
                 modelGateStatus={modelGateStatus}
+                imagePreview={imagePreview}
+                closeImagePreview={closeImagePreview}
             />
         </>
     );

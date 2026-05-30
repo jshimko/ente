@@ -63,10 +63,7 @@ class HomeEmptyStateWidget extends StatelessWidget {
                                 height: 142,
                               ),
                             ),
-                            Image.asset(
-                              'assets/onboarding-2.png',
-                              height: 188,
-                            ),
+                            Image.asset('assets/onboarding-2.png', height: 188),
                           ],
                         ),
                       ),
@@ -132,9 +129,7 @@ class HomeEmptyStateWidget extends StatelessWidget {
                             TextLinkButton(
                               label: l10n.faq,
                               onTap: () {
-                                PlatformUtil.openWebView(
-                                  context,
-                                  context.l10n.faq,
+                                PlatformUtil.openUrlInBrowser(
                                   'https://ente.com/help/auth/faq',
                                 );
                               },

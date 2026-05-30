@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+**Documented:** 2026-05-28
+**Commit:** 1f562071c4
+**Version:** 1.0.4+104
+
 ## Project Philosophy
 
 Ente is focused on privacy, transparency and trust. It's a fully open-source, end-to-end encrypted platform for storing data in the cloud. When contributing, always prioritize:
@@ -12,7 +16,7 @@ Ente is focused on privacy, transparency and trust. It's a fully open-source, en
 
 ## Project Overview
 
-Ente Locker is a Flutter application for securely storing important documents. It's part of the Ente mobile monorepo and shares multiple packages with the Ente Photos app. The app provides encrypted file storage with collections, sharing capabilities, and cross-platform support (iOS, Android, Linux, Windows, macOS).
+Ente Locker is a Flutter application for securely storing important documents. It's part of the Ente mobile monorepo and shares packages with the Ente Photos and Ente Auth apps. The app provides encrypted file storage with collections, sharing, structured information items (notes, credentials, contacts, physical records), and cross-platform support (iOS, Android, Linux, Windows, macOS).
 
 ## Commit & PR Guidelines
 
@@ -64,13 +68,16 @@ melos run clean:locker
 
 # Run the app (from this directory)
 flutter run
+# Or via melos with the standard flavor
+melos run run:locker:apk
 
 # Build for specific platforms
-flutter build apk      # Android
-flutter build ios      # iOS
-flutter build macos    # macOS
-flutter build windows  # Windows
-flutter build linux    # Linux
+flutter build apk           # Android
+flutter build ios           # iOS
+melos run build:locker:ios  # Release iOS via melos
+flutter build macos         # macOS
+flutter build windows       # Windows
+flutter build linux         # Linux
 ```
 
 ### Code Quality
@@ -88,28 +95,69 @@ flutter analyze lib/path/to/file.dart
 
 ### Testing
 
-There are currently no tests in the `test/` directory. When adding tests:
-```bash
-flutter test                    # Run all tests
-flutter test test/path/to/file_test.dart  # Run specific test
+Unit tests live under `test/`:
+
 ```
+test/services/files/download/file_downloader_test.dart
+test/services/files/offline/offline_file_storage_test.dart
+test/services/info_file_service_test.dart
+test/test_utils/configuration_test_util.dart
+test/utils/file_util_test.dart
+```
+
+```bash
+flutter test                                       # Run all tests
+flutter test test/services/info_file_service_test.dart  # Run specific test
+```
+
+`test/test_utils/configuration_test_util.dart` provides shared fixtures for tests that need an initialized `Configuration`.
 
 ## Architecture
 
+### Source Layout (`lib/`)
+
+```
+lib/
+├── main.dart         # Process entry: platform/Rust/service init, then runApp (see App Entry Point)
+├── app.dart          # The `App` root widget (MaterialApp, routes, lifecycle, startup prompts)
+├── core/             # constants.dart, errors.dart (typed errors), locale.dart
+├── events/           # App-local event classes (extend ente_events' Event)
+├── extensions/       # collection_extension.dart, user_extension.dart
+├── l10n/             # Generated localizations + the `context.l10n` extension (l10n.dart)
+├── models/           # Domain models + ChangeNotifier selection state + info-item models
+├── services/         # Singleton services (see Core Services)
+├── states/           # InheritedWidget-based shared UI state (user details)
+├── ui/               # Pages, settings, sharing, collections, components, viewer, mixins
+└── utils/            # Action helpers, file/icon utils, sort/list utils, crypto helper
+```
+
+### App Entry Point (`main.dart` + `app.dart`)
+
+App startup is split across two files:
+
+- **`main.dart`** — process bootstrap. In order: `registerCryptoApi(const EnteCryptoDartAdapter())`, desktop window/tray setup (`windowManager.ensureInitialized()` + `WindowListenerService` + `_initSystemTray()`), `SuperLogging`, Rust init via `_ensureRustInitialized()` (idempotent `EnteRust.init()`), then service init via `_init()`, then `runApp(...)` wrapped in `AppLock` (from `ente_lock_screen`). On Android it also enables high refresh rate and a transparent navigation bar.
+- **`app.dart`** — the `App` `StatefulWidget` (root). Owns the `MaterialApp`, the route table (`/` → `HomePage` if an account is configured, else `OnboardingPage`), and `WindowListener` / `TrayListener` / `WidgetsBindingObserver` mixins. On `AppLifecycleState.resumed` it calls `CollectionService.instance.sync()`. It listens for `SignedInEvent` / `SignedOutEvent` to refresh and (re)schedule `LockerContactsDisplayService`, and runs startup prompts: `showAppUpdateBottomSheet(...)` and `showChangeLogSheet(...)` gated by `UpdateService`. `App.setLocale(context, locale)` rebuilds with a new locale.
+
 ### Monorepo Structure
 
-Locker is one of multiple apps in `/apps/` that share common packages from `/packages/`:
+Locker is one of three apps in `/apps/` (Photos, Auth, Locker) that share common packages from `/packages/`:
 
 **Shared Packages:**
 - `ente_accounts` - User authentication and account management
-- `ente_base` - Base utilities and common code
+- `ente_base` - Base models, types, and `EnteBaseDatabase`
+- `ente_components` - Shared design-system components (e.g. `SettingsPageScaffold`, `ComponentTheme.configure`); used widely across settings and components
 - `ente_configuration` - App configuration (extended by local `services/configuration.dart`)
-- `ente_crypto_dart` - Encryption/decryption primitives
+- `ente_contacts` - Shared contacts client (wrapped locally by `LockerContactsDisplayService`)
+- `ente_crypto_api` - Abstract crypto interface (key derivation, encrypt/decrypt)
+- `ente_crypto_dart_adapter` - Dart implementation of crypto API (adapter pattern)
 - `ente_events` - Event bus for app-wide events
-- `ente_legacy` - Legacy services (e.g., emergency contacts)
-- `ente_lock_screen` - App lock/authentication UI
+- `ente_icons` - Custom icon font (EnteIcons.ttf)
+- `ente_legacy` - Legacy services (emergency contacts, emergency kit)
+- `ente_lock_screen` - App lock/authentication UI and settings
 - `ente_logging` - Structured logging
 - `ente_network` - HTTP client and network layer
+- `ente_pure_utils` - Pure Dart utilities (email validation, crypto, path)
+- `ente_rust` - Rust FFI bindings via flutter_rust_bridge
 - `ente_sharing` - Sharing models and utilities
 - `ente_strings` - Localization strings
 - `ente_ui` - Common UI components and theming
@@ -117,102 +165,185 @@ Locker is one of multiple apps in `/apps/` that share common packages from `/pac
 
 ### Core Services (Singletons)
 
-All major services follow the singleton pattern with `instance` getters:
+All major services follow the singleton pattern with `static final instance` getters unless noted. Grouped by area:
 
-1. **CollectionService** (`lib/services/collections/collections_service.dart`)
-   - Manages collections (folders) and files within them
-   - Syncs with server and maintains local cache (`_collectionIDToCollections`)
-   - Handles collection CRUD operations
-   - Provides encryption key management for collections and files
+**Configuration & Auth**
+1. **Configuration** (`lib/services/configuration.dart`) - Extends `BaseConfiguration` from `ente_configuration` (no local overrides); stores user settings, account info, and app state. `init(List<EnteBaseDatabase> dbs)` is called as `init([LockerDB.instance])`.
+2. **UserService** (from `ente_accounts`) - Manages authentication and account details. Fires `SignedInEvent` / `SignedOutEvent` on the event bus.
+3. **LockScreenSettings** (from `ente_lock_screen`) - Biometric / PIN settings and privacy screen state.
 
-2. **Configuration** (`lib/services/configuration.dart`)
-   - Extends `BaseConfiguration` from `ente_configuration` package
-   - Stores user settings, account info, and app state
-   - Initialized with database instances in `main.dart`
+**Collections**
+4. **CollectionApiClient** (`lib/services/collections/collections_api_client.dart`) - HTTP gateway for collection CRUD. Called by `CollectionService`.
+5. **CollectionService** (`lib/services/collections/collections_service.dart`) - Manages collections (folders) and the files within them. Maintains the `_collectionIDToCollections` local cache, performs incremental sync, and owns encryption-key resolution for collections and files.
+6. **FavoritesService** (`lib/services/favorites_service.dart`) - Manages favorite/starred items within collections.
 
-3. **UserService** (from `ente_accounts`)
-   - Manages user authentication and account details
-   - Fires `SignedInEvent` and `SignedOutEvent` via event bus
+**Files**
+7. **FileUploader** (`lib/services/files/upload/file_upload_service.dart`) - Encrypts and uploads files; invoked from `UploaderPage`.
+8. **MetadataUpdaterService** (`lib/services/files/sync/metadata_updater_service.dart`) - File caption / metadata edits.
+9. **OfflineFilesService** (`lib/services/files/offline/offline_files_service.dart`) - Manages offline copies of selected files.
+10. **ServiceLocator** (`lib/services/files/download/service_locator.dart`) - Download manager and signed-URL resolution for file downloads. (Locally scoped; do not confuse with the Photos app's global `service_locator.dart`.)
 
-4. **TrashService** (`lib/services/trash/trash_service.dart`)
-   - Manages deleted files and trash operations
+**Links & Sharing**
+11. **LinksClient** (`lib/services/files/links/links_client.dart`) - HTTP gateway for public share links.
+12. **LinksService** (`lib/services/files/links/links_service.dart`) - Handles shareable public links for collections.
 
-5. **LinksService** (`lib/services/files/links/links_service.dart`)
-   - Handles shareable public links for collections
+**Trash / Info / Updates**
+13. **TrashService** (`lib/services/trash/trash_service.dart`) - Manages deleted files and trash operations.
+14. **InfoFileService** (`lib/services/info_file_service.dart`) - Handles structured information files (notes, credentials, contacts, physical records).
+15. **UpdateService** (`lib/services/update_service.dart`) - Checks for app updates.
+
+**Legacy / Contacts**
+16. **EmergencyContactService** (from `ente_legacy`) - Emergency-contact flows.
+17. **LegacyKitService** (from `ente_legacy`) - Emergency-kit features and other legacy bridges.
+18. **LockerContactsDisplayService** (`lib/services/contacts_display_service.dart`) - Locker-side wrapper around `ente_contacts`. Uses static methods (not a singleton); initialized via `LockerContactsDisplayService.init(...)`.
 
 ### Database Layer
 
 SQLite databases managed via `sqflite`:
-- **CollectionDB** (`lib/services/collections/collections_db.dart`) - Collections and files
-- **TrashDB** (`lib/services/trash/trash_db.dart`) - Deleted items
+- **LockerDB** (`lib/services/db/locker_db.dart`) - Main database for collections and files. Extends `EnteBaseDatabase` from `ente_base`.
+- **TrashTable** (`lib/services/db/trash_table.dart`) - Table managed inside `LockerDB`, not a separate database.
 
-Both databases track sync times to enable incremental syncing.
+Sync times are tracked per table to enable incremental syncing.
 
 ### Event-Driven Architecture
 
-The app uses an event bus (`ente_events` package) for cross-component communication:
+The app uses the `ente_events` event bus (`Bus.instance`) for cross-component communication. The event *classes* are defined locally in `lib/events/` (each extends `Event` from `ente_events`), except for the auth/account events which come from the `ente_events` package itself.
 
-**Key Events:**
-- `SignedInEvent` / `SignedOutEvent` - Authentication state changes
-- `CollectionsUpdatedEvent` - Triggers UI refresh when collections change
-- `BackupUpdatedEvent` - File upload progress/completion
+**App-local events (`lib/events/`):**
+- `CollectionsUpdatedEvent(source)` - Collections changed. **Requires a `String source` argument** (see Sync Pattern / Common Gotchas).
+- `BackupUpdatedEvent(items)` - File upload progress/completion; carries `LinkedHashMap<String, BackupItem>`.
+- `OpenedSettingsEvent()` - Fired when the settings screen opens (triggers a user-details refresh).
+- `UserDetailsRefreshEvent()` - Requests a fresh fetch of user details.
 
-**Pattern:** Services fire events, UI components listen and call `setState()`.
+**From the `ente_events` package:**
+- `SignedInEvent` / `SignedOutEvent` - Authentication state changes (fired by `UserService`).
+- `UserDetailsChangedEvent` - Cached user details changed.
+
+**Pattern:** Services fire events, UI components listen and call `setState()` (or, for user details, the `UserDetailsStateWidget` rebuilds — see State Management).
+
+### State Management
+
+There is no DI/state-management framework. Two lightweight patterns are used:
+
+- **`InheritedWidget` for user details** (`lib/states/user_details_state.dart`): `UserDetailsStateWidget` wraps the `HomePage` body (`home_page.dart:617`) and exposes the current `UserDetails` through the `InheritedUserDetails` inherited widget. Read it with `InheritedUserDetails.of(context)` (e.g. `lib/ui/components/usage_card_widget.dart`). It seeds from `UserService.getCachedUserDetails()` and refreshes on `OpenedSettingsEvent`, `UserDetailsChangedEvent`, and `UserDetailsRefreshEvent`.
+- **`ChangeNotifier` for selection** (`lib/models/`): `SelectedFiles` and `SelectedCollections` track multi-select state and `notifyListeners()` on change. `SelectedFiles` matches by `uploadedFileID`.
+
+### Models (`lib/models/`)
+
+- `info/info_item.dart` - `InfoItem` wrapper plus the `InfoType` enum (`note`, `physicalRecord`, `accountCredential`, `emergencyContact`) and `InfoData` subclasses (`PersonalNoteData`, `PhysicalRecordData`, `AccountCredentialData`, `EmergencyContactData`). Serialized to/from JSON via `toJsonString()` / `fromJsonString()`. The wire format uses the enum's camelCase `value`, but `InfoType.fromString` stays tolerant of older hyphenated forms (e.g. `physical-record`) so previously stored metadata still parses.
+- `selected_files.dart` / `selected_collections.dart` - `ChangeNotifier` selection models (see State Management).
+- `file_type.dart` - File type classification.
+- `ui_section_type.dart` - `UISectionType` enum (`homeCollections`, `incomingCollections`, `outgoingCollections`); drives `AllCollectionsPage.viewType`.
+
+### Core Module (`lib/core/`)
+
+- `constants.dart` - App-wide constants: default production endpoint (`https://api.ente.com`), mnemonic word count (24), `publicLinkDeviceLimits`, temp-dir cleanup interval, support email, GitHub discussions URL, etc.
+- `errors.dart` - Typed `Error` subclasses surfaced through services/UI: `UnauthorizedError`, `StorageLimitExceededError`, `NoActiveSubscriptionError`, `FileLimitReachedError`, `FileTooLargeForPlanError`, `WiFiUnavailableError`, `SharingNotPermittedForFreeAccountsError`, plus `InvalidFileError` (carries an `InvalidReason` enum) and passkey/SRP session errors.
+- `locale.dart` - Localization plumbing: `appSupportedLocales`, `getLocale()` / `setLocale()`, and `localResolutionCallBack` (used by both `main.dart` and `app.dart`).
 
 ### UI Structure
 
-**Main Pages:**
-- `HomePage` - Main dashboard with collections grid, recents, and FAB
-- `CollectionPage` - Single collection view with files
-- `AllCollectionsPage` - Full collection list (by type: home/incoming/outgoing)
-- `SettingsPage` - User settings and account management
-- `InformationPage` - Add/edit structured information (notes, credentials, contacts, etc.)
+**Main pages (`lib/ui/pages/`):**
+- `HomePage` - Main dashboard with collections grid, recents, and FAB. Extends `UploaderPage`.
+- `CollectionPage` - Single-collection view with its files. Extends `UploaderPage`.
+- `AllCollectionsPage` - Full collection list filtered by type (home / incoming / outgoing).
+- `TrashPage` - Deleted-files management.
+- `OnboardingPage` - First-run onboarding flow.
+- `DeleteAccountPage` - Account-deletion workflow.
+- `SavePage` (`save_page.dart`) - Bottom sheet for creating new info items.
+- `FileUploadScreen` (`file_upload_screen.dart`) - Alternative upload entry point used when not embedded in an `UploaderPage`.
+- `BaseInfoPage` - Abstract base for structured-information pages, with subclasses:
+  - `AccountCredentialsPage`
+  - `PersonalNotePage`
+  - `EmergencyContactPage`
+  - `PhysicalRecordsPage`
+
+**Settings (`lib/ui/settings/`):**
+- `settings_page.dart` - Settings root; `language_selector_page.dart` - Locale picker.
+- `components/`: `settings_item.dart`, `settings_page_scaffold.dart` (shared scaffolds for settings subpages).
+- `pages/`: `about_page.dart`, `account_settings_page.dart`, `general_settings_page.dart`, `security_settings_page.dart`, `settings_search_page.dart`, `support_page.dart`, `theme_settings_page.dart`.
+- `widgets/`: `app_update_dialog.dart` (`showAppUpdateBottomSheet`), `app_version_widget.dart`, `change_log_sheet.dart` (`showChangeLogSheet`) + `change_log_strings.dart`, `social_icons_row.dart`.
+
+**Sharing UI (`lib/ui/sharing/`):**
+- `share_collection_bottom_sheet.dart` - Entry sheet for sharing a collection.
+- `album_participants_page.dart` + `manage_album_participant.dart` + `add_participant_page.dart` + `add_email_bottom_sheet.dart` - Participant management.
+- `manage_links_widget.dart` + `album_share_info_widget.dart` - Public-link management.
+- `pickers/` - Permission / role pickers for participants.
+
+**Navigation:**
+- `DrawerPage` (`lib/ui/drawer/drawer_page.dart`) - App navigation drawer.
+
+**Other UI directories:**
+- `lib/ui/collections/` - Collection grid widgets (e.g., `CollectionFlexGridView`).
+- `lib/ui/components/` - Reusable building blocks.
+- `lib/ui/viewer/` - File viewer (actions, date helpers).
+- `lib/ui/mixins/` - Cross-page mixins (e.g., `SearchMixin`).
 
 **Key UI Patterns:**
-- Pages extend `StatefulWidget` with mixins for reusable behavior (e.g., `SearchMixin`)
-- `UploaderPage`/`UploaderPageState` - Base class for pages that handle file uploads
-- Collections use `CollectionFlexGridView` for responsive grid layouts
-- Search functionality integrated via `SearchMixin` with search bar in AppBar
+- Pages extend `StatefulWidget` and pull in reusable behavior via mixins (e.g., `SearchMixin`).
+- `UploaderPage` / `UploaderPageState` is the base class for pages that handle file uploads.
+- Collections use `CollectionFlexGridView` for responsive grid layouts.
+- Search is integrated via `SearchMixin` with a search bar in the AppBar.
+
+#### Save Modal Pattern
+
+`lib/ui/pages/save_page.dart` exposes `SaveBottomSheet` together with the `SaveOptionType` enum (`document`, `note`, `physicalRecord`, `credentials`). The bottom sheet is the canonical entry point for creating new info items: the user selects an option and is routed to the matching `BaseInfoPage` subclass. Prefer this flow over instantiating `BaseInfoPage` subclasses directly so the picker, analytics, and routing stay consistent.
 
 ### File Upload Flow
 
-1. User selects file via `file_picker` package
-2. `UploaderPage.uploadFiles()` picks collection (or creates one)
-3. `FileUploadService` encrypts and uploads to server
-4. `CollectionService.sync()` called to fetch updated state
-5. `CollectionsUpdatedEvent` fired → UI refreshes
+1. User selects a file via the `file_picker` package.
+2. `UploaderPage.uploadFiles()` picks a collection (or creates one).
+3. `FileUploader` (`file_upload_service.dart`) encrypts and uploads to the server.
+4. `CollectionService.sync()` is called to fetch updated state.
+5. `CollectionsUpdatedEvent` fires → UI refreshes.
 
 ### Crypto & Encryption
 
 Files and collections are end-to-end encrypted:
-- **Collection keys:** Encrypted with user's master key
-- **File keys:** Encrypted with collection key
-- `CryptoHelper` (`utils/crypto_helper.dart`) provides key derivation utilities
-- `ente_crypto_dart` provides low-level encryption primitives
+- **Collection keys:** encrypted with the user's master key.
+- **File keys:** encrypted with the collection key.
+- `CryptoHelper` (`lib/utils/crypto_helper.dart`) provides key-derivation utilities.
+- `ente_crypto_api` provides the abstract crypto interface.
+- `ente_crypto_dart_adapter` provides the Dart implementation of the crypto API.
+
+### Notable Utilities
+
+Helpers worth knowing about before adding new ones:
+
+`lib/utils/`
+- `collection_actions.dart`, `file_actions.dart` - Primary operation helpers used by pages (delete, move, restore, share, etc.).
+- `file_util.dart`, `file_icon_utils.dart` - File handling and icon resolution by MIME / extension.
+- `collection_sort_util.dart` - Collection sort orders.
+- `collection_list_util.dart` - List helpers, e.g. `uniqueCollectionsById` and uncategorized-collection filtering.
+- `info_item_utils.dart` - Metadata for structured info-item types (titles, icons, route mapping).
+- `crypto_helper.dart` - Key-derivation helpers (see Crypto & Encryption above).
+
+`lib/extensions/`
+- `collection_extension.dart`
+- `user_extension.dart`
 
 ### Platform-Specific Code
 
-**Desktop (Windows/Linux/macOS):**
-- Window management via `window_manager` package
-- System tray support via `tray_manager` package
-- Initialized in `main.dart` before `runApp()`
+**Desktop (Windows / Linux / macOS):**
+- Window management via `window_manager` and `WindowListenerService` (from `ente_ui`), both initialized in `main.dart` before `runApp()`. The tray icon and context menu are set up in `main.dart`'s `_initSystemTray()`.
+- The `App` state (`app.dart`) registers the `WindowListener` / `TrayListener` callbacks (resize persistence, tray click → show/hide, menu actions).
 
-**Mobile (iOS/Android):**
-- Share intent handling via `listen_sharing_intent` package
-- `HomePage.initializeSharing()` processes shared files from other apps
-- High refresh rate support on Android via `flutter_displaymode`
+**Mobile (iOS / Android):**
+- Share-intent handling via `listen_sharing_intent`.
+- `HomePage.initializeSharing()` processes files shared from other apps.
+- High refresh rate enabled on Android via `flutter_displaymode`.
 
 ### Localization
 
-- Uses Flutter's built-in `l10n` system
-- Localization files in `lib/l10n/`
-- Generated code via `flutter gen-l10n` (configured in `l10n.yaml`)
-- Shared strings from `ente_strings` package
-- Access in widgets via `context.l10n.keyName`
+- Uses Flutter's built-in `l10n` system.
+- Source strings in `lib/l10n/` - 26 `app_<locale>.arb` files; generated code via `flutter gen-l10n` (configured in `l10n.yaml`).
+- The `context.l10n` extension is defined in `lib/l10n/l10n.dart` (re-exports `app_localizations.dart`); access strings via `context.l10n.keyName`.
+- Locale selection/resolution (`appSupportedLocales`, `getLocale`/`setLocale`, `localResolutionCallBack`) lives in `lib/core/locale.dart`.
+- Shared strings come from the `ente_strings` package.
 
 ## Code Style & Linting
 
-The project uses strict linting rules defined in `ente/mobile/analysis_options.yaml`:
+The project uses strict linting rules defined in `ente/mobile/analysis_options.yaml` (which `analysis_options.yaml` here extends):
 
 **Key enforced rules:**
 - `require_trailing_commas` (ERROR) - All function/constructor calls must have trailing commas
@@ -220,21 +351,39 @@ The project uses strict linting rules defined in `ente/mobile/analysis_options.y
 - `prefer_final_fields` (ERROR) - Prefer `final` for non-reassigned fields
 - `prefer_const_constructors` (WARNING) - Use `const` constructors where possible
 - `unawaited_futures` (WARNING) - Explicitly handle or ignore futures
-- `cancel_subscriptions` (ERROR) - Cancel StreamSubscriptions in `dispose()`
+- `cancel_subscriptions` (ERROR) - Cancel `StreamSubscription`s in `dispose()`
 - `prefer_double_quotes` - Use double quotes for strings
 
-**To fix trailing comma errors:** Run `dart format .` which auto-adds them.
+**To fix trailing comma errors:** run `dart format .` which auto-adds them.
 
 ## Important Patterns
 
 ### Service Initialization
 
-Services are initialized in `main.dart` in a specific order:
-1. Crypto initialization (`CryptoUtil.init()`)
-2. Database initialization (CollectionDB, TrashDB)
-3. Configuration with databases
-4. Network layer
-5. Service-specific initialization
+`main.dart` initializes services in a strict order inside `_init()` (see `lib/main.dart:177-225`). The rule of thumb is that any `*ApiClient` / `*Client` service initializes before the higher-level service that wraps it. Before `_init()` runs, `registerCryptoApi(const EnteCryptoDartAdapter())` and `EnteRust.init()` (via `_ensureRustInitialized()`) have already executed.
+
+```
+ 1. CryptoUtil.init()
+ 2. LockerDB.instance.init()
+ 3. Configuration.instance.init([LockerDB.instance])
+ 4. Network.instance.init(Configuration.instance)
+ 5. UserService.instance.init(...)
+ 6. LockScreenSettings.instance.init(Configuration.instance)
+ 7. CollectionApiClient.instance.init()
+ 8. CollectionService.instance.init(preferences)
+ 9. FavoritesService.instance.init()
+10. OfflineFilesService.instance.init()
+11. LinksClient.instance.init()
+12. LinksService.instance.init()
+13. ServiceLocator.instance.init(...)
+14. UpdateService.instance.init(preferences, packageInfo)
+15. TrashService.instance.init(preferences)
+16. EmergencyContactService.instance.init(UserService.instance, ...)
+17. LockerContactsDisplayService.init(...)
+18. LegacyKitService.instance.init(...)
+```
+
+On desktop, `windowManager.ensureInitialized()` and `WindowListenerService.instance.init()` run before this sequence begins.
 
 ### Sync Pattern
 
@@ -247,10 +396,11 @@ await _apiClient.someOperation(params);
 await CollectionService.instance.sync();
 
 // 3. Event bus notifies UI (optional, sync may fire it)
-Bus.instance.fire(CollectionsUpdatedEvent());
+// CollectionsUpdatedEvent requires a `source` string identifying the trigger.
+Bus.instance.fire(CollectionsUpdatedEvent("someOperation"));
 ```
 
-**Important:** Avoid calling `setState()` or manual reloads after operations that trigger `sync()`, as the sync fires `CollectionsUpdatedEvent` which already refreshes the UI.
+**Important:** Avoid calling `setState()` or manual reloads after operations that trigger `sync()` - the sync fires `CollectionsUpdatedEvent` which already refreshes the UI.
 
 ### File References
 
@@ -259,19 +409,16 @@ When referencing code locations in messages, use the format:
 lib/services/collections/collections_service.dart:123
 ```
 
-## Known TODOs
-
-From README.md:
-- Verify `PackageInfoUtil.getPackageName()` correctness on Linux and Windows
-- Update `file_url.dart` to download only via CF worker when necessary
-
 ## Common Gotchas
 
-1. **Multiple Flutter apps in monorepo:** Always use `melos bootstrap` instead of `flutter pub get` to properly link local packages
-2. **Window management:** Desktop window initialization must happen before `runApp()` in `main.dart`
-3. **Trailing commas:** The linter is strict about this - always add them to avoid CI failures
-4. **Package imports:** Never use relative imports for files in other packages; always use `package:` syntax
-5. **Sync timing:** File upload operations should NOT manually call `_loadCollections()` in the callback to avoid duplicate UI refreshes (see `HomePage.onFileUploadComplete()`)
+1. **Multiple Flutter apps in monorepo:** Always use `melos bootstrap` instead of `flutter pub get` to properly link local packages.
+2. **Window management:** Desktop window initialization must happen before `runApp()` in `main.dart`.
+3. **Trailing commas:** The linter is strict about this - always add them to avoid CI failures.
+4. **Package imports:** Never use relative imports for files in other packages; always use `package:` syntax.
+5. **Sync timing:** File-upload operations should NOT manually call `_loadCollections()` in the callback to avoid duplicate UI refreshes (see `HomePage.onFileUploadComplete()`).
+6. **Two `ServiceLocator`s in the monorepo:** Locker's `ServiceLocator` lives at `lib/services/files/download/service_locator.dart` and is scoped to download/URL resolution. The Photos app has a separate, broader `service_locator.dart`. Don't confuse them when copying patterns across apps.
+7. **`LockerContactsDisplayService` is not a singleton:** Initialize via the static `LockerContactsDisplayService.init(...)` call; there is no `instance` getter.
+8. **Events are app-local and `CollectionsUpdatedEvent` needs a `source`:** Event classes live in `lib/events/` (not the `ente_events` package). `CollectionsUpdatedEvent(source)` takes a required `String source` argument — `CollectionsUpdatedEvent()` will not compile.
 
 ## Critical Coding Requirements
 
@@ -288,6 +435,7 @@ From README.md:
 - Use a subagent to search for existing components before creating new ones
 - Only create new components if none exist that meet the requirements
 - Check both UI components in `lib/ui/` and shared components in `../../packages/`
+- For info-item creation flows, route through `SaveBottomSheet` / `SaveOptionType` rather than constructing `BaseInfoPage` subclasses directly
 
 ### 3. Design System - MANDATORY
 **Never hardcode colors or text styles**
@@ -295,7 +443,7 @@ From README.md:
 - Use a subagent to find the appropriate design tokens
 - Access colors via theme: `getEnteColorScheme(context)`
 - Access text styles via theme: `getEnteTextTheme(context)`
-- Call above theme getters only at the top of (`build`) methods and re-use them throughout the component
+- Call the above theme getters only at the top of `build` methods and reuse them throughout the component
 - If you MUST use custom colors/styles (extremely rare), explicitly inform the user with a clear warning
 
 ### 4. Database Methods - BEST PRACTICE

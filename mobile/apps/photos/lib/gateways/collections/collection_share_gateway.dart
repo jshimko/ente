@@ -2,6 +2,8 @@ import "package:dio/dio.dart";
 import "package:photos/gateways/collections/models/public_url.dart";
 import "package:photos/models/api/collection/user.dart";
 
+const _linkDeviceLimitExceededCode = "LINK_DEVICE_LIMIT_EXCEEDED";
+
 /// Gateway for collection sharing API endpoints.
 ///
 /// Handles sharing collections with other users and managing public links.
@@ -69,10 +71,7 @@ class CollectionShareGateway {
   }) async {
     final response = await _enteDio.post(
       "/collections/unshare",
-      data: {
-        "collectionID": collectionID,
-        "email": email,
-      },
+      data: {"collectionID": collectionID, "email": email},
     );
     final sharees = <User>[];
     for (final user in response.data["sharees"]) {
@@ -92,7 +91,7 @@ class CollectionShareGateway {
   Future<PublicURL> createShareUrl({
     required int collectionID,
     bool enableCollect = false,
-    bool enableJoin = true,
+    bool enableJoin = false,
     bool enableComment = true,
   }) async {
     final response = await _enteDio.post(
@@ -119,10 +118,7 @@ class CollectionShareGateway {
   }) async {
     final data = Map<String, dynamic>.from(props);
     data["collectionID"] = collectionID;
-    final response = await _enteDio.put(
-      "/collections/share-url",
-      data: data,
-    );
+    final response = await _enteDio.put("/collections/share-url", data: data);
     return PublicURL.fromMap(response.data["result"]);
   }
 
@@ -130,9 +126,7 @@ class CollectionShareGateway {
   ///
   /// [collectionID] - The collection whose public link to delete.
   Future<void> deleteShareUrl(int collectionID) async {
-    await _enteDio.delete(
-      "/collections/share-url/$collectionID",
-    );
+    await _enteDio.delete("/collections/share-url/$collectionID");
   }
 
   /// Gets information about a public collection.
@@ -151,9 +145,7 @@ class CollectionShareGateway {
     try {
       final response = await _enteDio.get(
         "/public-collection/info",
-        options: Options(
-          headers: {"X-Auth-Access-Token": authToken},
-        ),
+        options: Options(headers: {"X-Auth-Access-Token": authToken}),
       );
       return response.data;
     } on DioException catch (e) {
@@ -162,6 +154,11 @@ class CollectionShareGateway {
           throw PublicCollectionInfoUnauthorizedException();
         case 410:
           throw PublicCollectionInfoExpiredException();
+        case 403:
+          if (_hasErrorCode(e.response?.data, _linkDeviceLimitExceededCode)) {
+            throw PublicCollectionDeviceLimitExceededException();
+          }
+          rethrow;
         case 429:
           final errorMessage = _extractErrorMessage(e.response?.data);
           if (errorMessage?.toLowerCase().contains("device limit") ?? false) {
@@ -187,9 +184,7 @@ class CollectionShareGateway {
     final response = await _enteDio.post(
       "/public-collection/verify-password",
       data: {"passHash": passwordHash},
-      options: Options(
-        headers: {"X-Auth-Access-Token": authToken},
-      ),
+      options: Options(headers: {"X-Auth-Access-Token": authToken}),
     );
     return response.data["jwtToken"];
   }
@@ -221,6 +216,16 @@ String? _extractErrorMessage(dynamic data) {
     return data["error"]?.toString();
   }
   return null;
+}
+
+bool _hasErrorCode(dynamic data, String code) {
+  if (data is Map<String, dynamic>) {
+    return data["code"] == code;
+  }
+  if (data is Map) {
+    return data["code"] == code;
+  }
+  return false;
 }
 
 class PublicCollectionInfoUnauthorizedException implements Exception {}

@@ -4,7 +4,7 @@ import 'package:backup_exclusion/backup_exclusion.dart';
 import 'package:ente_auth/l10n/l10n.dart';
 import 'package:ente_auth/models/code.dart';
 import 'package:ente_auth/utils/dialog_util.dart';
-import 'package:ente_qr/ente_qr.dart';
+import 'package:ente_auth_qr/ente_qr.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
@@ -18,9 +18,7 @@ Future<Directory> _getPickedImagesDirectory({
 }) async {
   final documentsDirectory =
       await (documentsDirectoryProvider ?? getApplicationDocumentsDirectory)();
-  return Directory(
-    p.join(documentsDirectory.path, _pickedImagesDirectoryName),
-  );
+  return Directory(p.join(documentsDirectory.path, _pickedImagesDirectoryName));
 }
 
 Future<File?> _getManagedPickedGalleryImage(
@@ -75,9 +73,7 @@ Future<void> _cleanupPickedGalleryImageIfNeeded(
   }
 }
 
-Future<void> cleanupPickedImagesOnStartup({
-  Logger? logger,
-}) async {
+Future<void> cleanupPickedImagesOnStartup({Logger? logger}) async {
   if (!Platform.isIOS) {
     return;
   }

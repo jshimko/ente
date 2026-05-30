@@ -1,6 +1,6 @@
-import "package:ente_ui/components/captioned_text_widget.dart";
+import "package:ente_ui/components/captioned_text_widget_v2.dart";
 import "package:ente_ui/components/divider_widget.dart";
-import "package:ente_ui/components/menu_item_widget.dart";
+import "package:ente_ui/components/menu_item_widget_v2.dart";
 import "package:ente_ui/components/separators.dart";
 import "package:ente_ui/components/title_bar_title_widget.dart";
 import "package:ente_ui/components/title_bar_widget.dart";
@@ -29,27 +29,23 @@ class LinkExpiryPickerPage extends StatelessWidget {
             ),
           ),
           SliverList(
-            delegate: SliverChildBuilderDelegate(
-              (context, index) {
-                return Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 20,
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      ClipRRect(
-                        borderRadius:
-                            const BorderRadius.all(Radius.circular(8)),
-                        child: ItemsWidget(collection),
-                      ),
-                    ],
-                  ),
-                );
-              },
-              childCount: 1,
-            ),
+            delegate: SliverChildBuilderDelegate((context, index) {
+              return Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 20,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ClipRRect(
+                      borderRadius: const BorderRadius.all(Radius.circular(8)),
+                      child: ItemsWidget(collection),
+                    ),
+                  ],
+                ),
+              );
+            }, childCount: 1),
           ),
           const SliverPadding(padding: EdgeInsets.symmetric(vertical: 12)),
         ],
@@ -82,9 +78,15 @@ class _ItemsWidgetState extends State<ItemsWidget> {
   @override
   Widget build(BuildContext context) {
     List<Widget> items = [];
-    for (Tuple2<String, int> expiryOpiton in _expiryOptions) {
+    for (int index = 0; index < _expiryOptions.length; index++) {
+      final expiryOpiton = _expiryOptions[index];
       items.add(
-        _menuItemForPicker(context, expiryOpiton),
+        _menuItemForPicker(
+          context,
+          expiryOpiton,
+          isFirst: index == 0,
+          isLast: index == _expiryOptions.length - 1,
+        ),
       );
     }
     items = addSeparators(
@@ -94,24 +96,21 @@ class _ItemsWidgetState extends State<ItemsWidget> {
         bgColor: getEnteColorScheme(context).fillFaint,
       ),
     );
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: items,
-    );
+    return Column(mainAxisSize: MainAxisSize.min, children: items);
   }
 
   Widget _menuItemForPicker(
     BuildContext context,
-    Tuple2<String, int> expiryOpiton,
-  ) {
-    return MenuItemWidget(
+    Tuple2<String, int> expiryOpiton, {
+    required bool isFirst,
+    required bool isLast,
+  }) {
+    return MenuItemWidgetV2(
       menuItemColor: getEnteColorScheme(context).fillFaint,
-      captionedTextWidget: CaptionedTextWidget(
-        title: expiryOpiton.item1,
-      ),
+      captionedTextWidget: CaptionedTextWidgetV2(title: expiryOpiton.item1),
       alignCaptionedTextToLeft: true,
-      isTopBorderRadiusRemoved: true,
-      isBottomBorderRadiusRemoved: true,
+      isTopBorderRadiusRemoved: !isFirst,
+      isBottomBorderRadiusRemoved: !isLast,
       alwaysShowSuccessState: true,
       surfaceExecutionStates: expiryOpiton.item2 == -1 ? false : true,
       onTap: () async {
@@ -147,10 +146,7 @@ class _ItemsWidgetState extends State<ItemsWidget> {
   }
 
   Future<void> updateTime(int newValidTill, BuildContext context) async {
-    await _updateUrlSettings(
-      context,
-      {'validTill': newValidTill},
-    );
+    await _updateUrlSettings(context, {'validTill': newValidTill});
   }
 
   Future<void> _updateUrlSettings(
@@ -158,10 +154,12 @@ class _ItemsWidgetState extends State<ItemsWidget> {
     Map<String, dynamic> prop,
   ) async {
     try {
-      await CollectionApiClient.instance
-          .updateShareUrl(widget.collection, prop);
+      await CollectionApiClient.instance.updateShareUrl(
+        widget.collection,
+        prop,
+      );
     } catch (e) {
-      await showGenericErrorDialog(context: context, error: e);
+      await showGenericErrorBottomSheet(context: context, error: e);
       rethrow;
     }
   }

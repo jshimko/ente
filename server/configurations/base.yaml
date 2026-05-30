@@ -1,0 +1,169 @@
+# Base configuration structure for museum.
+#
+# This file defines the full key hierarchy that viper needs for nested lookups
+# (e.g. viper.Sub()). It is always loaded first, then the environment-specific
+# config (local.yaml, production.yaml) is merged on top, followed by
+# credentials.yaml, museum.yaml, and finally environment variables.
+#
+# This file intentionally contains NO secrets. All sensitive values (encryption
+# keys, JWT secrets, API keys, passwords) must be provided via environment
+# variables or a subsequently merged config file.
+
+# By default, museum logs to stdout. Specify this path to get it to log to a
+# file instead.
+log-file: ""
+
+# HTTP connection parameters
+http:
+  # If true, use TLS for HTTPS connections.
+  # use-tls: true
+  # The port to bind to.
+  # port: 8080
+
+# Specify the base endpoints for various apps
+apps:
+  public-albums:
+  embed-albums:
+  public-locker:
+  public-paste:
+  cast:
+  accounts:
+  family:
+  public-memories:
+  custom-domain:
+    cname:
+
+# Database connection parameters
+db:
+  host: localhost
+  port: 5432
+  name: ente_db
+  sslmode: disable
+  user:
+  password:
+
+# Map of data centers
+s3:
+  b2-eu-cen:
+    key:
+    secret:
+    endpoint:
+    region:
+    bucket:
+  wasabi-eu-central-2-v3:
+    key:
+    secret:
+    endpoint:
+    region:
+    bucket:
+    compliance: true
+  scw-eu-fr-v3:
+    key:
+    secret:
+    endpoint:
+    region:
+    bucket:
+  wasabi-eu-central-2-derived:
+    key:
+    secret:
+    endpoint:
+    region:
+    bucket:
+
+# Key used for encrypting customer emails before storing them in DB
+key:
+  encryption:
+  hash:
+
+# JWT secrets
+jwt:
+  secret:
+
+# SMTP configuration (optional)
+smtp:
+  host:
+  port:
+  username:
+  password:
+  email:
+  sender-name:
+  encryption:
+
+# Zoho Zeptomail config (optional)
+transmail:
+  key:
+
+# Apple config (optional)
+apple:
+  shared-secret:
+
+# Stripe config (optional)
+stripe:
+  us:
+    key:
+    webhook-secret:
+  in:
+    key:
+    webhook-secret:
+  whitelisted-redirect-urls: []
+  path:
+    success:
+    cancel:
+
+# Passkey support (optional)
+webauthn:
+  rpid: localhost
+  rporigins:
+    - "http://localhost:3001"
+
+# Discord config (optional)
+discord:
+  bot:
+    cha-ching:
+      token:
+      channel:
+    mona-lisa:
+      token:
+      channel:
+
+# Zoho Campaigns config (optional)
+zoho:
+  client-id:
+  client-secret:
+  refresh-token:
+  list-key:
+  topic-ids:
+
+# Listmonk Campaigns config (optional)
+listmonk:
+  server-url:
+  username:
+  password:
+  list-ids:
+
+# Various low-level configuration options
+internal:
+  silent: false
+  trusted-client-ip-header:
+  health-check-url:
+  admins: []
+  admin:
+  disable-registration: false
+  is-self-hosted: false
+
+# Replication config
+replication:
+  enabled: false
+  worker-url:
+  worker-count: 6
+  tmp-storage: tmp/replication
+
+# Configuration for various background / cron jobs.
+jobs:
+  cron:
+    skip: false
+  remove-unreported-objects:
+    worker-count: 1
+  clear-orphan-objects:
+    enabled: false
+    prefix: ""

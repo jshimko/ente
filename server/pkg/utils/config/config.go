@@ -45,8 +45,18 @@ func ConfigureViper(environment string) error {
 	// variable names.
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_", "-", "_"))
 
-	viper.SetConfigFile("configurations/" + environment + ".yaml")
+	// Load base.yaml first to establish the full key hierarchy that viper
+	// needs for nested lookups (e.g. viper.Sub()). Without this structure,
+	// env-var-only configurations break because viper.Sub() only sees
+	// file-sourced keys. base.yaml contains no secrets.
+	viper.SetConfigFile("configurations/base.yaml")
 	err := viper.ReadInConfig()
+	if err != nil {
+		return err
+	}
+
+	// Merge environment-specific config on top of the base.
+	err = mergeConfigFileIfExists("configurations/" + environment + ".yaml")
 	if err != nil {
 		return err
 	}

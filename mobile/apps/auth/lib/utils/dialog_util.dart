@@ -40,11 +40,7 @@ Future<ButtonResult?> showErrorDialog(
         isInAlert: true,
         buttonAction: ButtonAction.first,
         onTap: () async {
-          await sendEmail(
-            context,
-            to: "support@ente.com",
-            body: body,
-          );
+          await sendEmail(context, to: "support@ente.com", body: body);
         },
       ),
       const ButtonWidget(
@@ -180,9 +176,7 @@ Future<ButtonResult?> showGenericErrorDialog({
           buttonAction: ButtonAction.third,
           isInAlert: true,
           onTap: () async {
-            PlatformUtil.openWebView(
-              context,
-              context.l10n.faq,
+            PlatformUtil.openUrlInBrowser(
               "https://ente.com/help/auth/troubleshooting/windows-login",
             ).ignore();
           },
@@ -360,11 +354,10 @@ Future<ButtonResult?> showConfettiDialog<T>({
 }) {
   final widthOfScreen = MediaQuery.of(context).size.width;
   final isMobileSmall = widthOfScreen <= mobileSmallThreshold;
-  final pageBuilder = Builder(
-    builder: dialogBuilder,
+  final pageBuilder = Builder(builder: dialogBuilder);
+  final ConfettiController confettiController = ConfettiController(
+    duration: const Duration(seconds: 1),
   );
-  final ConfettiController confettiController =
-      ConfettiController(duration: const Duration(seconds: 1));
   confettiController.play();
   return showDialog(
     context: context,

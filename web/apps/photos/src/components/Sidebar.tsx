@@ -101,6 +101,7 @@ import {
 import type { SidebarActionID } from "ente-new/photos/services/search/types";
 import {
     isDevBuildAndUser,
+    isSelfHosted,
     pullSettings,
     updateCFProxyDisabledPreference,
     updateCustomDomain,
@@ -518,12 +519,14 @@ const UserDetailsSection: React.FC<UserDetailsSectionProps> = ({
         [userDetails],
     );
 
-    const handleSubscriptionCardClick = () =>
+    const handleSubscriptionCardClick = () => {
+        if (isSelfHosted()) return;
         openManageSubscription({
             userDetails,
             showManageMemberSubscription,
             onShowPlanSelector,
         });
+    };
 
     return (
         <>
@@ -564,6 +567,8 @@ const SubscriptionStatus: React.FC<SubscriptionStatusProps> = ({
     userDetails,
     onShowPlanSelector,
 }) => {
+    if (isSelfHosted()) return <></>;
+
     const hasAMessage = useMemo(() => {
         if (isPartOfFamily(userDetails) && !isFamilyAdmin(userDetails)) {
             return false;
@@ -919,6 +924,7 @@ const UtilitySection: React.FC<UtilitySectionProps> = ({
                 onRootClose={onCloseSidebar}
                 pendingAction={pendingPreferencesAction}
                 onActionHandled={onPreferencesActionHandled}
+                onAuthenticateUser={onAuthenticateUser}
             />
             <FreeUpSpace
                 {...freeUpSpaceVisibilityProps}
@@ -1144,12 +1150,6 @@ const Account: React.FC<AccountProps> = ({
                         onClick={handleActiveSessions}
                     />
                 </RowButtonGroup>
-                {isDesktop && (
-                    <DesktopAppLockSettings
-                        onAuthenticateUser={onAuthenticateUser}
-                        onRootClose={onRootClose}
-                    />
-                )}
                 <RowButtonGroup>
                     <RowButton
                         label={t("change_password")}
@@ -1196,7 +1196,8 @@ const Account: React.FC<AccountProps> = ({
 };
 
 const DesktopAppLockSettings: React.FC<
-    Pick<SidebarProps, "onAuthenticateUser"> & Pick<AccountProps, "onRootClose">
+    Pick<SidebarProps, "onAuthenticateUser"> &
+        Pick<NestedSidebarDrawerVisibilityProps, "onRootClose">
 > = ({ onAuthenticateUser, onRootClose }) => {
     const appLock = useAppLockSnapshot();
     const { show, props } = useModalVisibility();
@@ -1232,15 +1233,17 @@ const DesktopAppLockSettings: React.FC<
     );
 };
 
-type PreferencesProps = NestedSidebarDrawerVisibilityProps & {
-    pendingAction?: PreferencesAction;
-    onActionHandled?: (action?: PreferencesAction) => void;
-};
+type PreferencesProps = NestedSidebarDrawerVisibilityProps &
+    Pick<SidebarProps, "onAuthenticateUser"> & {
+        pendingAction?: PreferencesAction;
+        onActionHandled?: (action?: PreferencesAction) => void;
+    };
 
 const Preferences: React.FC<PreferencesProps> = ({
     open,
     onClose,
     onRootClose,
+    onAuthenticateUser,
     pendingAction,
     onActionHandled,
 }) => {
@@ -1334,6 +1337,12 @@ const Preferences: React.FC<PreferencesProps> = ({
                     label={t("advanced")}
                     onClick={showAdvancedSettings}
                 />
+                {isDesktop && (
+                    <DesktopAppLockSettings
+                        onAuthenticateUser={onAuthenticateUser}
+                        onRootClose={onRootClose}
+                    />
+                )}
                 {isHLSGenerationSupported && (
                     <RowButtonGroup>
                         <RowSwitch
@@ -1422,7 +1431,9 @@ const localeName = (locale: SupportedLocale) => {
         case "ca-ES":
             return "Català";
         case "zh-CN":
-            return "中文";
+            return "简体中文";
+        case "zh-TW":
+            return "繁體中文";
         case "nl-NL":
             return "Nederlands";
         case "es-ES":
@@ -1441,6 +1452,8 @@ const localeName = (locale: SupportedLocale) => {
             return "Lietuvių kalba";
         case "uk-UA":
             return "Українська";
+        case "ur-IN":
+            return "اردو";
         case "vi-VN":
             return "Tiếng Việt";
         case "ja-JP":

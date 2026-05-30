@@ -1,0 +1,708 @@
+# Taskfile.yml — Ente Monorepo Task Runner
+# https://taskfile.dev
+#
+# Usage:
+#   task                    Show available tasks
+#   task web:dev -- photos  Dev server for a specific web app
+#   task server:up          Start Docker Compose stack
+#   task build              Build all components
+#   task lint               Lint all components
+#   task clean              Clean all build artifacts
+
+version: "3"
+
+vars:
+  # Default app name when none specified via CLI_ARGS
+  APP: "{{if .CLI_ARGS}}{{.CLI_ARGS}}{{else}}photos{{end}}"
+
+tasks:
+  default:
+    desc: Show all available tasks
+    silent: true
+    cmds:
+      - task --list-all
+
+  # ===========================================================================
+  # WEB — Node.js / TypeScript / Yarn / Turbo
+  # ===========================================================================
+
+  web:install:
+    desc: Install web dependencies
+    dir: web
+    # NOTE: go-task resolves `sources`/`generates` relative to `dir` (web/), so
+    # these paths are intentionally NOT prefixed with `web/`.
+    sources:
+      - yarn.lock
+      - package.json
+      - apps/*/package.json
+      - packages/*/package.json
+    status:
+      - test -d node_modules
+    preconditions:
+      - sh: command -v yarn
+        msg: "yarn is required — install via corepack or npm"
+    cmds:
+      - yarn install --frozen-lockfile
+
+  web:dev:
+    desc: "Start web dev server [task web:dev -- <app>]"
+    dir: web
+    deps: [web:install]
+    cmds:
+      - yarn dev:{{.APP}}
+
+  web:build:
+    desc: "Build a web app [task web:build -- <app>]"
+    dir: web
+    deps: [web:install]
+    # Caching is deferred to Turbo, whose own content-addressed cache is the
+    # source of truth. Layering go-task `sources`/`generates` on top risks a
+    # stale skip when `.turbo`/`out` is cleared out-of-band, and the 14-app
+    # output globs are unmaintainable. A warm `turbo build` is near-instant.
+    cmds:
+      - yarn turbo build
+
+  web:build-wasm:
+    desc: Build the WASM package from Rust source
+    dir: web
+    deps: [web:install]
+    # Turbo-driven (`turbo build --filter=ente-wasm`); caching deferred to Turbo.
+    # The real Rust source lives in rust/bindings/wasm/ente-wasm/ (+ workspace
+    # deps), which Turbo's task inputs track — not go-task globs.
+    # wasm-pack is a LOCAL devDependency (web/packages/wasm), installed by
+    # web:install and resolved via node_modules/.bin — so we don't guard the
+    # global PATH for it. The real external requirement is the Rust toolchain it
+    # shells out to.
+    preconditions:
+      - sh: command -v cargo
+        msg: "cargo is required (wasm-pack compiles Rust) — install from https://rustup.rs"
+    cmds:
+      - yarn build:wasm
+
+  web:lint:
+    desc: Lint all web code (prettier + eslint + tsc)
+    dir: web
+    deps: [web:install]
+    # Caching deferred to Turbo (`turbo lint tsc` + prettier). No go-task sources.
+    cmds:
+      - yarn lint
+
+  web:lint-fix:
+    desc: Auto-fix web lint issues
+    dir: web
+    deps: [web:install]
+    cmds:
+      - yarn lint-fix
+
+  web:test:
+    desc: Run web tests (WASM package)
+    dir: web
+    deps: [web:install]
+    # Tests always run (no caching) — `task test` should actually execute them.
+    cmds:
+      - yarn test
+
+  web:clean:
+    desc: Clean web build artifacts
+    cmds:
+      - rm -rf web/node_modules
+      - rm -rf web/packages/wasm/pkg
+      - find web/apps -maxdepth 2 -type d \( -name out -o -name dist -o -name .next -o -name .next-dev -o -name .next-desktop \) -exec rm -rf {} + 2>/dev/null || true
+      - find web -type d -name .turbo -exec rm -rf {} + 2>/dev/null || true
+
+  # ===========================================================================
+  # SERVER — Go / Gin / Docker Compose
+  # ===========================================================================
+
+  server:install:
+    desc: Download server Go dependencies
+    dir: server
+    sources:
+      - go.mod
+      - go.sum
+    preconditions:
+      - sh: command -v go
+        msg: "go is required — install from https://go.dev"
+    cmds:
+      - go mod download
+
+  server:build:
+    desc: Build the Museum server binary
+    dir: server
+    deps: [server:install]
+    # NOTE: go-task resolves `sources`/`generates` relative to `dir` (server/),
+    # so these paths are intentionally NOT prefixed with `server/`.
+    sources:
+      - cmd/**/*.go
+      - ente/**/*.go
+      - pkg/**/*.go
+      - internal/**/*.go
+      - go.mod
+      - go.sum
+    generates:
+      - bin/museum
+    # `status` is ANDed with the sources checksum: rebuild if the binary is
+    # missing (deleted out-of-band) OR any source changed.
+    status:
+      - test -f bin/museum
+    preconditions:
+      - sh: command -v go
+        msg: "go is required — install from https://go.dev"
+    cmds:
+      - go build -o bin/museum cmd/museum/main.go
+
+  server:dev:
+    desc: Start Museum with hot reload (air)
+    dir: server
+    preconditions:
+      - sh: command -v air
+        msg: "air is required — install via go install github.com/air-verse/air@latest"
+    cmds:
+      - air
+
+  server:lint:
+    desc: Lint server Go code (go vet + staticcheck)
+    dir: server
+    # Paths are relative to `dir` (server/) — see note on server:build.
+    sources:
+      - cmd/**/*.go
+      - ente/**/*.go
+      - pkg/**/*.go
+      - internal/**/*.go
+      - go.mod
+      - go.sum
+    preconditions:
+      - sh: command -v go
+        msg: "go is required — install from https://go.dev"
+    cmds:
+      - ./scripts/lint.sh
+
+  server:test:
+    desc: Run server tests
+    dir: server
+    preconditions:
+      - sh: command -v go
+        msg: "go is required — install from https://go.dev"
+    cmds:
+      - go test -v ./pkg/...
+
+  server:up:
+    desc: Start server stack (Museum + Postgres + MinIO)
+    dir: server
+    preconditions:
+      - sh: command -v docker
+        msg: "docker is required"
+    cmds:
+      - docker compose up --build
+
+  server:up-d:
+    desc: Start server stack in background
+    dir: server
+    preconditions:
+      - sh: command -v docker
+        msg: "docker is required"
+    cmds:
+      - docker compose up --build -d
+
+  server:down:
+    desc: Stop server stack
+    dir: server
+    preconditions:
+      - sh: command -v docker
+        msg: "docker is required"
+    cmds:
+      - docker compose down
+
+  server:logs:
+    desc: Tail server stack logs
+    dir: server
+    preconditions:
+      - sh: command -v docker
+        msg: "docker is required"
+    cmds:
+      - docker compose logs -f
+
+  server:db:
+    desc: Open psql shell to dev Postgres
+    dir: server
+    preconditions:
+      - sh: command -v docker
+        msg: "docker is required"
+    cmds:
+      - docker compose exec postgres env PGPASSWORD=pgpass psql -U pguser -d ente_db
+
+  server:clean:
+    desc: Clean server build artifacts
+    cmds:
+      - rm -rf server/bin server/tmp
+      - rm -f server/museum server/main
+      - find server -name "__debug_bin*" -delete 2>/dev/null || true
+
+  # ===========================================================================
+  # MOBILE — Flutter / Dart / Melos
+  # ===========================================================================
+
+  mobile:fvm-install:
+    desc: Install the Flutter SDK version pinned in .fvmrc
+    dir: mobile
+    preconditions:
+      - sh: command -v fvm
+        msg: "fvm is required — install via dart pub global activate fvm"
+    status:
+      # Skip only when the linked SDK matches the version pinned in .fvmrc.
+      # A bare `test -L` would treat any stale symlink as up-to-date and never
+      # re-install after the pinned version changes.
+      - "test \"$(readlink .fvm/flutter_sdk 2>/dev/null | sed 's#.*/##')\" = \"$(grep -o '[0-9][0-9.]*' .fvmrc | head -1)\""
+    cmds:
+      - fvm install
+      - fvm exec flutter precache
+
+  mobile:bootstrap:
+    desc: Bootstrap mobile workspace (melos bootstrap)
+    dir: mobile
+    deps: [mobile:fvm-install]
+    # NOTE: go-task resolves `sources`/`generates` relative to `dir` (mobile/),
+    # so these paths are intentionally NOT prefixed with `mobile/`. melos's
+    # workspace globs are apps/*, packages/*, apps/photos/plugins/* (melos.yaml).
+    sources:
+      - pubspec.lock
+      - pubspec.yaml
+      - melos.yaml
+      - apps/*/pubspec.yaml
+      - packages/*/pubspec.yaml
+      - apps/photos/plugins/*/pubspec.yaml
+    # `status` is ANDed with the sources checksum: a bootstrap that fails midway
+    # records no checksum, so it correctly re-runs even though .dart_tool exists;
+    # the test -d check additionally forces a re-run if .dart_tool is deleted.
+    status:
+      - test -d .dart_tool
+    preconditions:
+      - sh: command -v fvm
+        msg: "fvm is required — install via dart pub global activate fvm"
+      - sh: command -v melos
+        msg: "melos is required — install via dart pub global activate melos"
+    cmds:
+      - melos bootstrap
+
+  mobile:run:
+    desc: "Run a mobile app [task mobile:run -- photos|auth|locker]"
+    dir: mobile
+    deps: [mobile:bootstrap]
+    cmds:
+      - melos run run:{{.APP}}:apk
+
+  mobile:build:
+    desc: "Build a mobile app APK [task mobile:build -- photos|auth|locker]"
+    dir: mobile
+    deps: [mobile:bootstrap]
+    cmds:
+      - melos run build:{{.APP}}:apk
+
+  mobile:codegen:
+    desc: Generate Rust bindings (flutter_rust_bridge)
+    dir: mobile
+    deps: [mobile:bootstrap]
+    preconditions:
+      - sh: command -v cargo
+        msg: "cargo is required — install from https://rustup.rs"
+    cmds:
+      - melos run codegen:rust
+
+  mobile:lint:
+    desc: Run Flutter static analysis
+    dir: mobile
+    deps: [mobile:bootstrap]
+    # Paths are relative to `dir` (mobile/) — NOT prefixed with `mobile/`.
+    # `apps/**/*.dart` also covers apps/photos/plugins/**.
+    sources:
+      - apps/**/*.dart
+      - packages/**/*.dart
+      - analysis_options.yaml
+    cmds:
+      - fvm exec flutter analyze
+
+  mobile:format:
+    desc: Format all Dart code
+    dir: mobile
+    cmds:
+      - fvm exec dart format .
+
+  mobile:clean:
+    desc: Clean all mobile build artifacts
+    dir: mobile
+    preconditions:
+      - sh: command -v melos
+        msg: "melos is required — install via dart pub global activate melos"
+    cmds:
+      - melos run clean:all
+      # Also remove the APK that mobile:apk copies to the repo root.
+      - rm -f "{{.ROOT_DIR}}/app-independent-release.apk"
+
+  mobile:submodules:
+    desc: Initialize git submodules (one-time setup)
+    status:
+      - git submodule status --recursive | grep -qv '^-'
+    cmds:
+      - git submodule update --init --recursive
+
+  mobile:apk:
+    desc: "Build release APK for sideloading [task mobile:apk -- https://your-server.example.com]"
+    dir: mobile/apps/photos
+    deps: [mobile:submodules, mobile:codegen]
+    # Prerequisites for this RELEASE build (see docs/self-hosting/development/
+    # mobile-build.md):
+    #  1. JDK 17 toolchain Gradle can discover (a transitive plugin pins
+    #     languageVersion=17; a newer/older default JDK like 21/26 won't match).
+    #     Install one (e.g. `brew install --cask zulu@17`) and point JAVA_HOME at
+    #     it, or add the Foojay resolver to android/settings.gradle to auto-download.
+    #  2. A signing keystore — a `--release` build is signed. Provide it via
+    #     mobile/apps/photos/android/key.properties (storeFile/storePassword/
+    #     keyAlias/keyPassword) or the SIGNING_KEY_PATH / SIGNING_KEY_ALIAS /
+    #     SIGNING_KEY_PASSWORD / SIGNING_STORE_PASSWORD env vars. Generate one with
+    #     keytool (see https://docs.flutter.dev/deployment/android#create-an-upload-keystore).
+    vars:
+      ENDPOINT_FLAG: "{{if .CLI_ARGS}}--dart-define=endpoint={{.CLI_ARGS}}{{end}}"
+    preconditions:
+      - sh: command -v fvm
+        msg: "fvm is required — install via dart pub global activate fvm"
+    cmds:
+      - fvm exec flutter build apk {{.ENDPOINT_FLAG}} --dart-define=cronetHttpNoPlay=true --release --flavor independent --target-platform android-arm64
+      # Copy the signed APK to the repo root for convenience. ROOT_DIR is the
+      # directory of the root Taskfile (the repo root). The original stays under
+      # build/ so `task mobile:sideload` still finds it.
+      - cp build/app/outputs/flutter-apk/app-independent-release.apk "{{.ROOT_DIR}}/"
+      - 'echo "APK -> {{.ROOT_DIR}}/app-independent-release.apk"'
+
+  mobile:sideload:
+    desc: Install the built APK on a connected device via ADB
+    dir: mobile/apps/photos
+    preconditions:
+      - sh: command -v adb
+        msg: "adb is required — install via Android SDK platform-tools"
+      - sh: test -f build/app/outputs/flutter-apk/app-independent-release.apk
+        msg: "APK not found — run 'task mobile:apk' first"
+    cmds:
+      - adb install build/app/outputs/flutter-apk/app-independent-release.apk
+
+  # ===========================================================================
+  # DESKTOP — Electron / Yarn
+  # ===========================================================================
+
+  desktop:install:
+    desc: Install desktop dependencies
+    dir: desktop
+    sources:
+      - package-lock.json
+      - package.json
+    status:
+      - test -d node_modules
+    preconditions:
+      - sh: command -v npm
+        msg: "npm is required — install Node.js (https://nodejs.org)"
+    cmds:
+      - npm ci
+
+  desktop:dev:
+    desc: Start desktop dev (Electron + Next.js)
+    dir: desktop
+    deps: [desktop:install]
+    cmds:
+      - npm run dev
+
+  desktop:build:
+    desc: Build desktop app
+    dir: desktop
+    deps: [desktop:install]
+    # Fingerprints the main-process TypeScript + packaging config. CAVEAT: this
+    # does NOT track the embedded web renderer — a renderer-only web change won't
+    # retrigger packaging here. Iterate on the renderer via `desktop:dev` (HMR)
+    # or `web:build`; this task is the main-process build + electron-builder pack.
+    sources:
+      - src/**/*
+      - package.json
+      - tsconfig.json
+      - electron-builder.yml
+      - package-lock.json
+    generates:
+      - app/**/*
+      - dist/**/*
+    # Repackage if the tsc output is missing (cleaned) OR sources changed.
+    status:
+      - test -d app
+    cmds:
+      - npm run build
+      # Copy the built macOS installer (DMG) to the repo root for convenience.
+      # ROOT_DIR is the directory of the root Taskfile (the repo root); the
+      # original stays under dist/. The filename includes the version, so glob
+      # it. The guard keeps `task build` working on non-macOS platforms, where
+      # the build produces an AppImage/exe instead of a DMG.
+      - |
+        for f in dist/ente-*-universal.dmg; do
+          [ -e "$f" ] || continue
+          cp "$f" "{{.ROOT_DIR}}/"
+          echo "DMG -> {{.ROOT_DIR}}/$(basename "$f")"
+        done
+
+  desktop:lint:
+    desc: Lint desktop code
+    dir: desktop
+    deps: [desktop:install]
+    sources:
+      - src/**/*
+      - package.json
+      - tsconfig.json
+      - package-lock.json
+    cmds:
+      - npm run lint
+
+  desktop:clean:
+    desc: Clean desktop build artifacts
+    cmds:
+      - rm -rf desktop/node_modules desktop/app desktop/dist
+      - rm -f desktop/out
+
+  # ===========================================================================
+  # CLI — Go
+  # ===========================================================================
+
+  cli:install:
+    desc: Download CLI Go dependencies
+    dir: cli
+    sources:
+      - go.mod
+      - go.sum
+    preconditions:
+      - sh: command -v go
+        msg: "go is required — install from https://go.dev"
+    cmds:
+      - go mod download
+
+  cli:build:
+    desc: Build the CLI binary
+    dir: cli
+    deps: [cli:install]
+    # Paths are relative to `dir` (cli/) — NOT prefixed with `cli/`.
+    sources:
+      - cmd/**/*.go
+      - pkg/**/*.go
+      - internal/**/*.go
+      - main.go
+      - go.mod
+      - go.sum
+    generates:
+      - bin/ente
+    # Rebuild if the binary is missing OR any source changed (see server:build).
+    status:
+      - test -f bin/ente
+    preconditions:
+      - sh: command -v go
+        msg: "go is required — install from https://go.dev"
+    cmds:
+      - go build -o bin/ente main.go
+
+  cli:clean:
+    desc: Clean CLI build artifacts
+    cmds:
+      - rm -rf cli/bin cli/dist
+
+  # ===========================================================================
+  # DOCS — VitePress / Yarn
+  # ===========================================================================
+
+  docs:install:
+    desc: Install docs dependencies
+    dir: docs
+    sources:
+      - package-lock.json
+      - package.json
+    status:
+      - test -d node_modules
+    preconditions:
+      - sh: command -v npm
+        msg: "npm is required — install Node.js (https://nodejs.org)"
+    cmds:
+      - npm ci
+
+  docs:dev:
+    desc: Start docs dev server (VitePress)
+    dir: docs
+    deps: [docs:install]
+    cmds:
+      - npm run dev
+
+  docs:build:
+    desc: Build docs for production
+    dir: docs
+    deps: [docs:install]
+    # NOTE: go-task resolves paths relative to `dir` (docs/). The VitePress
+    # content root is docs/docs/ on disk → `docs/...` relative to this dir.
+    sources:
+      - docs/**/*.md
+      - docs/.vitepress/config.ts
+      - docs/.vitepress/sidebar.ts
+      - docs/.vitepress/theme/**/*
+      - package-lock.json
+      - package.json
+    generates:
+      - docs/.vitepress/dist/**/*
+    # Rebuild if the dist output is missing (cleaned) OR sources changed.
+    status:
+      - test -d docs/.vitepress/dist
+    cmds:
+      - npm run build
+
+  docs:format:
+    desc: Format docs with Prettier
+    dir: docs
+    deps: [docs:install]
+    cmds:
+      - npm run lint:fix
+
+  docs:format-check:
+    desc: Check docs formatting (no write)
+    dir: docs
+    deps: [docs:install]
+    # Authored content only (relative to dir docs/); excludes .vitepress/dist
+    # and .vitepress/cache so a prior build doesn't invalidate the fingerprint.
+    sources:
+      - docs/**/*.md
+      - docs/.vitepress/config.ts
+      - docs/.vitepress/sidebar.ts
+      - docs/.vitepress/theme/**/*
+    cmds:
+      - npm run lint
+
+  docs:clean:
+    desc: Clean docs build artifacts
+    cmds:
+      - rm -rf docs/node_modules docs/docs/.vitepress/dist docs/docs/.vitepress/cache
+
+  # ===========================================================================
+  # RUST — Cargo (single workspace at rust/, shared target/ and Cargo.lock)
+  # ===========================================================================
+  #
+  # rust/ is ONE Cargo workspace (rust/Cargo.toml). Each command is a single
+  # invocation from `dir: rust` scoped to the three primary crates via `-p`
+  # (ente-core = crates/core, ente-rs = apps/cli, ente_photos = crates/photos).
+  # Caching is deferred to Cargo's own incremental compilation — go-task does NOT
+  # fingerprint these. Layering go-task `sources` on top would over-cache: it
+  # would report "up to date" and skip Cargo entirely after `cargo clean` wipes
+  # the shared rust/target/. Running per-crate builds in parallel is also avoided
+  # — concurrent cargo processes contend on the same target/ lock.
+
+  rust:build:
+    desc: Build the primary Rust crates (debug)
+    dir: rust
+    preconditions:
+      - sh: command -v cargo
+        msg: "cargo is required — install from https://rustup.rs"
+    cmds:
+      - cargo build -p ente-core -p ente-rs -p ente_photos
+
+  rust:build-release:
+    desc: Build the primary Rust crates (release)
+    dir: rust
+    preconditions:
+      - sh: command -v cargo
+        msg: "cargo is required — install from https://rustup.rs"
+    cmds:
+      - cargo build --release -p ente-core -p ente-rs -p ente_photos
+
+  rust:test:
+    desc: Test the primary Rust crates
+    dir: rust
+    preconditions:
+      - sh: command -v cargo
+        msg: "cargo is required — install from https://rustup.rs"
+    cmds:
+      - cargo test -p ente-core -p ente-rs -p ente_photos
+
+  rust:lint:
+    desc: Lint the primary Rust crates (clippy)
+    dir: rust
+    preconditions:
+      - sh: command -v cargo
+        msg: "cargo is required — install from https://rustup.rs"
+    cmds:
+      - cargo clippy -p ente-core -p ente-rs -p ente_photos -- -D warnings
+
+  rust:fmt:
+    desc: Format the primary Rust crates
+    dir: rust
+    preconditions:
+      - sh: command -v cargo
+        msg: "cargo is required — install from https://rustup.rs"
+    cmds:
+      - cargo fmt -p ente-core -p ente-rs -p ente_photos
+
+  rust:fmt-check:
+    desc: Check Rust formatting (no write)
+    dir: rust
+    preconditions:
+      - sh: command -v cargo
+        msg: "cargo is required — install from https://rustup.rs"
+    cmds:
+      - cargo fmt -p ente-core -p ente-rs -p ente_photos --check
+
+  rust:clean:
+    desc: Clean Rust build artifacts (shared workspace target/)
+    dir: rust
+    preconditions:
+      - sh: command -v cargo
+        msg: "cargo is required — install from https://rustup.rs"
+    cmds:
+      - cargo clean
+
+  # ===========================================================================
+  # AGGREGATE TASKS
+  # ===========================================================================
+
+  install:
+    desc: Install dependencies for all components
+    deps:
+      - web:install
+      - server:install
+      - desktop:install
+      - cli:install
+      - docs:install
+      - mobile:bootstrap
+
+  build:
+    desc: Build all components
+    deps:
+      - web:build
+      - server:build
+      - desktop:build
+      - cli:build
+      - docs:build
+      - rust:build
+
+  lint:
+    desc: Lint all components
+    deps:
+      - web:lint
+      - server:lint
+      - desktop:lint
+      - mobile:lint
+      - rust:lint
+      - rust:fmt-check
+      - docs:format-check
+
+  test:
+    desc: Run tests for all components
+    deps:
+      - web:test
+      - server:test
+      - rust:test
+
+  format:
+    desc: Format code in all components
+    deps:
+      - docs:format
+      - rust:fmt
+      - mobile:format
+
+  clean:
+    desc: Clean all build artifacts
+    cmds:
+      - ./clean.sh -y

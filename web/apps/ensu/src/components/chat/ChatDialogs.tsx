@@ -31,6 +31,7 @@ import {
     type NotificationAttributes,
 } from "ente-new/photos/components/Notification";
 import React, { memo } from "react";
+import { isTauriRuntime as detectTauriAppRuntime } from "services/tauri-runtime";
 
 interface IconProps {
     size: number;
@@ -78,7 +79,7 @@ export interface ChatDialogsProps {
     openLoginFromChat: () => void;
     openPasskeysFromChat: () => void;
     advancedUnlocked: boolean;
-    buildVersion: string;
+    buildVersion?: string;
     handleBuildVersionTap: () => void;
     openModelSettings: () => void;
     openSystemPromptSettings: () => void;
@@ -113,6 +114,8 @@ export interface ChatDialogsProps {
     setSyncNotificationOpen: React.Dispatch<React.SetStateAction<boolean>>;
     syncNotification?: NotificationAttributes;
     modelGateStatus: ModelGateStatus;
+    imagePreview: { url: string; name: string } | null;
+    closeImagePreview: () => void;
 }
 
 export const ChatDialogs = memo(
@@ -168,19 +171,16 @@ export const ChatDialogs = memo(
         setSyncNotificationOpen,
         syncNotification,
         modelGateStatus,
+        imagePreview,
+        closeImagePreview,
     }: ChatDialogsProps) => {
         const openExternalUrl = async (url: string) => {
-            const hasTauriBridge =
-                typeof window !== "undefined" &&
-                ("__TAURI__" in window ||
-                    "__TAURI_IPC__" in window ||
-                    "__TAURI_INTERNALS__" in window ||
-                    "__TAURI_METADATA__" in window);
-
-            if (isTauriRuntime || hasTauriBridge) {
+            if (isTauriRuntime || detectTauriAppRuntime()) {
                 try {
-                    const { open } = await import("@tauri-apps/api/shell");
-                    await open(url);
+                    const { openUrl } = await import(
+                        "@tauri-apps/plugin-opener"
+                    );
+                    await openUrl(url);
                     return;
                 } catch {
                     // fall through to browser open fallback
@@ -367,6 +367,76 @@ export const ChatDialogs = memo(
 
         return (
             <>
+                <Dialog
+                    open={!!imagePreview}
+                    onClose={closeImagePreview}
+                    maxWidth={false}
+                    fullScreen={isSmall}
+                    aria-label={imagePreview?.name || "Image preview"}
+                    slotProps={{
+                        paper: {
+                            sx: {
+                                m: 0,
+                                width: "100vw",
+                                height: "100svh",
+                                maxWidth: "none",
+                                maxHeight: "none",
+                                borderRadius: 0,
+                                bgcolor: "rgba(0, 0, 0, 0.94)",
+                                boxShadow: "none",
+                                overflow: "hidden",
+                            },
+                        },
+                    }}
+                >
+                    <DialogContent
+                        onClick={closeImagePreview}
+                        sx={{
+                            position: "relative",
+                            p: { xs: 2, sm: 3 },
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            overflow: "hidden",
+                        }}
+                    >
+                        {imagePreview && (
+                            <Box
+                                component="img"
+                                src={imagePreview.url}
+                                alt={imagePreview.name}
+                                onClick={(event) => event.stopPropagation()}
+                                sx={{
+                                    display: "block",
+                                    maxWidth: "100%",
+                                    maxHeight: "100%",
+                                    objectFit: "contain",
+                                    borderRadius: 1,
+                                }}
+                            />
+                        )}
+                        <IconButton
+                            aria-label="Close image preview"
+                            onClick={closeImagePreview}
+                            sx={{
+                                position: "absolute",
+                                top: { xs: 12, sm: 16 },
+                                right: { xs: 12, sm: 16 },
+                                width: 36,
+                                height: 36,
+                                color: "common.white",
+                                bgcolor: "rgba(0, 0, 0, 0.38)",
+                                "&:hover": { bgcolor: "rgba(0, 0, 0, 0.54)" },
+                            }}
+                        >
+                            <HugeiconsIcon
+                                icon={Cancel01Icon}
+                                {...smallIconProps}
+                            />
+                        </IconButton>
+                    </DialogContent>
+                </Dialog>
+
                 <Dialog
                     open={showSettingsModal}
                     onClose={closeSettingsModal}
@@ -700,19 +770,21 @@ export const ChatDialogs = memo(
                                 </Stack>
                             )}
 
-                            <Typography
-                                variant="mini"
-                                onClick={handleBuildVersionTap}
-                                sx={{
-                                    color: "text.muted",
-                                    textAlign: "center",
-                                    cursor: "pointer",
-                                    userSelect: "none",
-                                    py: 1,
-                                }}
-                            >
-                                Build {buildVersion}
-                            </Typography>
+                            {buildVersion && (
+                                <Typography
+                                    variant="mini"
+                                    onClick={handleBuildVersionTap}
+                                    sx={{
+                                        color: "text.muted",
+                                        textAlign: "center",
+                                        cursor: "pointer",
+                                        userSelect: "none",
+                                        py: 1,
+                                    }}
+                                >
+                                    Build {buildVersion}
+                                </Typography>
+                            )}
                         </Stack>
                     </DialogContent>
                 </Dialog>

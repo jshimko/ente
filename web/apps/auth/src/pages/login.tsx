@@ -6,6 +6,7 @@ import { EnteLogo } from "ente-base/components/EnteLogo";
 import { LoadingIndicator } from "ente-base/components/loaders";
 import { NavbarBase } from "ente-base/components/Navbar";
 import { customAPIHost } from "ente-base/origins";
+import { isRegistrationDisabled } from "ente-base/server-config";
 import { DevSettings } from "ente-new/photos/components/DevSettings";
 import { useRouter } from "next/router";
 import React, { useCallback, useEffect, useState } from "react";
@@ -26,6 +27,7 @@ const AccountsPagePaper = styled(Paper)(({ theme }) => ({
 const Page: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [host, setHost] = useState<string | undefined>(undefined);
+    const [registrationDisabled, setRegistrationDisabled] = useState(false);
     const [showDevSettings, setShowDevSettings] = useState(false);
     const [tapCount, setTapCount] = useState(0);
 
@@ -38,6 +40,7 @@ const Page: React.FC = () => {
 
     useEffect(() => {
         refreshHost();
+        void isRegistrationDisabled().then(setRegistrationDisabled);
         if (savedPartialLocalUser()?.email) void router.replace("/verify");
         setLoading(false);
     }, [router, refreshHost]);
@@ -45,7 +48,7 @@ const Page: React.FC = () => {
     const onSignUp = useCallback(() => void router.push("/signup"), [router]);
 
     const handleBackgroundClick: React.MouseEventHandler = (event) => {
-        // Don't allow this when running on (e.g.) web.ente.io.
+        // Don't allow this when running on (e.g.) auth.ente.com.
         if (!shouldAllowChangingAPIOrigin()) return;
 
         // Only count clicks directly on the background
@@ -100,7 +103,7 @@ const Page: React.FC = () => {
                 ]}
             >
                 <AccountsPagePaper>
-                    <LoginContents {...{ host, onSignUp }} />
+                    <LoginContents {...{ host, onSignUp, registrationDisabled }} />
                 </AccountsPagePaper>
             </CenteredFill>
             <DevSettings open={showDevSettings} onClose={handleClose} />
@@ -116,5 +119,9 @@ export default Page;
  */
 const shouldAllowChangingAPIOrigin = () => {
     const hostname = new URL(window.location.origin).hostname;
-    return !(hostname.endsWith(".ente.io") || hostname.endsWith(".ente.sh"));
+    return !(
+        hostname.endsWith(".ente.com") ||
+        hostname.endsWith(".ente.io") ||
+        hostname.endsWith(".ente.sh")
+    );
 };

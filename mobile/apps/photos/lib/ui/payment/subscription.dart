@@ -3,8 +3,12 @@ import 'package:photos/core/configuration.dart';
 import "package:photos/service_locator.dart";
 import "package:photos/ui/payment/store_subscription_page.dart";
 import 'package:photos/ui/payment/stripe_subscription_page.dart';
+import 'package:photos/ui/tabs/home_widget.dart';
 
 StatefulWidget getSubscriptionPage({bool isOnBoarding = false}) {
+  if (isOnBoarding && flagService.isSelfHosted) {
+    return const HomeWidget();
+  }
   if (updateService.isIndependentFlavor()) {
     return StripeSubscriptionPage(isOnboarding: isOnBoarding);
   }

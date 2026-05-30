@@ -8,11 +8,18 @@
   },
   "onBoardingBody": "Sinu kaheastmelise autentimise koodide turvaline varundus",
   "featureBackupCodes": "Läbivalt krüptitud varundus ja sünkroonimine",
+  "featureSearchEtc": "Otsing, sildid, jagamine,\njärgmine kood ja paljugi veel",
   "featureOpenSource": "Avatud lähtekoodiga ja\nauditeeritud turvaekspertide poolt",
   "signUp": "Loo konto ja liitu",
   "onBoardingGetStarted": "Alusta",
+  "setupFirstAccount": "Lisa oma esimene\nkasutajakonto",
+  "allTabEmptyHint": "Siin pole veel midagi. Koodi lisamiseks klõpsa + ikooni või otsi prüügikastist mõnu kustutatud kirje.",
+  "@allTabEmptyHint": {
+    "description": "Shown when the All tab has no active codes but Trash contains codes"
+  },
   "importScanQrCode": "Skanneeri QR-koodi",
   "qrCode": "QR-kood",
+  "qr": "QR-kood",
   "importEnterSetupKey": "Sisesta seadistusvõti",
   "importAccountPageTitle": "Sisesta kasutajakonto üksikasjad",
   "secretCanNotBeEmpty": "Saladus ei tohi jääda tühjaks",
@@ -253,6 +260,7 @@
   "checking": "Kontrollin...",
   "youAreOnTheLatestVersion": "Kasutad viimast versiooni",
   "warning": "Hoiatus",
+  "note": "Märkus",
   "exportWarningDesc": "Eksporditud failis on privaatsed andmed. Palun hoia seda turvaliselt.",
   "iUnderStand": "Sain aru",
   "@iUnderStand": {
@@ -271,8 +279,17 @@
     }
   },
   "sorry": "Vabandust",
+  "pendingSyncs": "Hoiatus",
   "pendingSyncsWarningBody": "Mõned sinu koodid on varundamata.\n\nEnne väljalogimist palun kontrolli, et sa oleksid nad varundanud.",
   "tapToEnterCode": "Koodi sisestamiseks klõpsa",
+  "manualSort": "Kohandatud",
+  "editOrder": "Muuda järjekorda",
+  "mostFrequentlyUsed": "Sageli kasutatud",
+  "mostRecentlyUsed": "Hiljuti kasutatud",
+  "activeSessions": "Aktiivsed sessioonid",
+  "somethingWentWrongPleaseTryAgain": "Midagi läks valesti, palun proovi uuesti",
+  "thisWillLogYouOutOfThisDevice": "Järgnevaga logitakse sind seadmest välja!",
+  "thisWillLogYouOutOfTheFollowingDevice": "Järgnevaga logitakse sind sellest seadmest välja:",
   "terminateSession": "Kas lõpetad sessiooni?",
   "terminate": "Lõpeta",
   "thisDevice": "See seade",
@@ -285,6 +302,7 @@
   "emailChangedTo": "E-posti aadress on nüüd muudetud, uus aadress on {newEmail}",
   "authenticationFailedPleaseTryAgain": "Autentimine ei õnnestunud, palun proovi uuesti",
   "authenticationSuccessful": "Autentimine õnnestus!",
+  "twofactorAuthenticationSuccessfullyReset": "Kahefaktorilise autentimise lähtestamine õnnestus",
   "incorrectRecoveryKey": "Vigane taasetvõti",
   "theRecoveryKeyYouEnteredIsIncorrect": "Sinu sisestatud taasetvõti on vigane",
   "enterPassword": "Sisesta salasõna",
@@ -292,9 +310,19 @@
   "exportDialogDesc": "Krüptitud ekspordifailid on kaitstud sinu sisestatud salasõnaga.",
   "encrypted": "Krüptitud",
   "plainText": "Vormindamata tekst",
+  "passwordToEncryptExport": "Salasõna eksporditud andmete krüptimiseks",
+  "export": "Ekspordi",
+  "useOffline": "Kasuta ilma varunduseta",
   "signInToBackup": "Oma koodide varindamiseks logi sisse",
+  "singIn": "Logi sisse",
+  "sigInBackupReminder": "Peale sisselogimist varundab Ente koode automaatselt.\n\nTäiendava varukoopia mõttes soovitame, et ka ekspordid oma koode.",
+  "offlineModeWarning": "Sa oled otsustanud jätkata ilma varundust kasutamata. Tagamaks, et su andmed ei kao, plaun tee varukoopiaid käsitsi.",
+  "showLargeIcons": "Näita suuri ikoone",
+  "compactMode": "Kompaktne vaade",
   "shouldHideCode": "Peida koodid",
   "doubleTapToViewHiddenCode": "Koodi nähemiseks topeltklõpsa kirjel",
+  "focusOnSearchBar": "Rakenduse käivitamisel säti fookus otsingule",
+  "minimizeToTrayOnClose": "Sulgemisel minimeeri rakendus süsteemisalve",
   "editCodeAuthMessage": "Koodi muutmiseks tuvasta end",
   "deleteCodeAuthMessage": "Koodi kustutamiseks tuvasta end",
   "showQRAuthMessage": "QR-koodi näitamiseks tuvasta end",
@@ -309,6 +337,10 @@
   "androidBiometricRequiredTitle": "Vjalik on biomeetriline tuvastus",
   "@androidBiometricRequiredTitle": {
     "description": "Message showed as a title in a dialog which indicates the user has not set up biometric authentication on their device. It is used on Android side. Maximum 60 characters."
+  },
+  "goToSettings": "Ava seadistused",
+  "@goToSettings": {
+    "description": "Message showed on a button that the user can click to go to settings pages from the current dialog. It is used on both Android and iOS side. Maximum 30 characters."
   },
   "developerSettings": "Seadistused arendajale",
   "serverEndpoint": "Serveri otspunkt",
@@ -350,5 +382,7 @@
   "errorInvalidQRCodeBody": "Skaneeritud QR-kood pole korrektne 2FA kasutajakonto.",
   "errorNoQRCode": "QR-koodi ei leidu",
   "errorGenericTitle": "Tekkis viga",
-  "errorGenericBody": "Importimisel tekkis ootamatu viga."
+  "errorGenericBody": "Importimisel tekkis ootamatu viga.",
+  "enterPasswordToDecrypt2FASBackup": "Sisesta salasõna 2FAS-i varukoopia dekrüptimiseks",
+  "enterPasswordToDecryptAndOTP": "Sisesta salasõna andOTP varukoopia dekrüptimiseks"
 }

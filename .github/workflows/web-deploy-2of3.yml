@@ -1,4 +1,4 @@
-name: "Deploy (twoof3 web)"
+name: "Deploy (2of3)"
 
 on:
     workflow_dispatch:
@@ -9,21 +9,20 @@ permissions:
 jobs:
     deploy:
         runs-on: ubuntu-latest
+        environment: production
 
         defaults:
             run:
                 working-directory: web
 
         steps:
-            - name: Checkout code
-              uses: actions/checkout@v4
-              with:
-                  persist-credentials: false
+            - name: Checkout
+              uses: actions/checkout@v6
 
             - name: Setup node and enable yarn caching
-              uses: actions/setup-node@v4
+              uses: actions/setup-node@v6
               with:
-                  node-version: 22
+                  node-version: 24
                   cache: "yarn"
                   cache-dependency-path: "web/yarn.lock"
 
@@ -43,11 +42,11 @@ jobs:
                       exit 1
                   fi
 
-            - name: Build twoof3
+            - name: Build 2of3
               run: yarn build:twoof3
 
-            - name: Publish twoof3
-              uses: cloudflare/wrangler-action@v3
+            - name: Publish 2of3
+              uses: cloudflare/wrangler-action@ebbaa1584979971c8614a24965b4405ff95890e0 # v4.0.0
               with:
                   accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
                   apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}

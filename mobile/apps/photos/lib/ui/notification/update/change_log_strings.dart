@@ -39,13 +39,14 @@ class ChangeLogStrings {
 
   static ChangeLogStrings? maybeForLocale(
     Locale locale, {
-    bool isOffline = false,
+    bool isLocalGallery = false,
   }) {
     final key = locale.countryCode != null && locale.countryCode!.isNotEmpty
         ? '${locale.languageCode}_${locale.countryCode}'
         : locale.languageCode;
-    final translations = isOffline ? _offlineTranslations : _translations;
-    final strings = translations[key] ??
+    final translations = isLocalGallery ? _offlineTranslations : _translations;
+    final strings =
+        translations[key] ??
         translations[locale.languageCode] ??
         translations['en'];
 
@@ -57,261 +58,299 @@ class ChangeLogStrings {
 
   static bool hasContentForLocale(
     Locale locale, {
-    bool isOffline = false,
+    bool isLocalGallery = false,
   }) {
-    return maybeForLocale(
-          locale,
-          isOffline: isOffline,
-        ) !=
-        null;
+    return maybeForLocale(locale, isLocalGallery: isLocalGallery) != null;
   }
 
   static const Map<String, ChangeLogStrings> _translations = {
     'en': ChangeLogStrings(
-      title1: 'Better People Suggestions',
+      title1: 'A fresh new look',
       desc1:
-          'We have improved how people suggestions work with big under-the-hood changes. This will lead to higher quality suggestions for you to review and tag your entire library quickly.',
-      desc1Item1: '',
-      desc1Item2: '',
-      title2: 'A Richer Feed',
+          "We've given the app a fresh look, with new fonts, colors, spacing, and buttons throughout. Plus, feed gets its own tab in the bottom navigation.",
+      title2: 'Albums, all in one place',
       desc2:
-          'You will now see new shared albums and new photos added to shared albums in the feed. Share notifications also redirect to feed so you can quickly check out, like and comment on the photos shared with you.',
-      title3: 'Redesigned Help & Support',
+          'All your albums (backed up, shared, and on-device) now live on a single page. Search, switch between grid and list view, and order them based on your preferences.',
+      title3: 'A bunch of improvements',
       desc3:
-          'We have made the help and support pages friendlier to use - report bugs, ask a question or raise a feature request. There is also a new section that takes you to our FAQ pages so you can quickly get answers.',
+          "Photos download much faster, face thumbnail generation is quicker, and the text recognition animation feels smoother. You can also now bulk ignore faces straight from a photo's info panel. Plus a whole lot of squashed bugs.",
     ),
     'cs': ChangeLogStrings(
-      title1: 'Lepší návrhy osob',
+      title1: 'Zcela nový vzhled',
       desc1:
-          'Vylepšili jsme fungování návrhů osob pomocí velkých změn na pozadí. Díky tomu získáte kvalitnější návrhy, které můžete rychleji zkontrolovat a označit v celé své knihovně.',
-      desc1Item1: '',
-      desc1Item2: '',
-      title2: 'Bohatší kanál',
+          'Dali jsme aplikaci svěží vzhled s novými fonty, barvami, rozestupy a tlačítky napříč celou aplikací. Feed má navíc vlastní kartu ve spodní navigaci.',
+      title2: 'Alba, všechna na jednom místě',
       desc2:
-          'Ve svém kanálu nyní uvidíte nová sdílená alba i nové fotky přidané do sdílených alb. Oznámení o sdílení vás také přesměrují do kanálu, abyste si mohli sdílené fotky rychle prohlédnout, označit jako oblíbené a komentovat.',
-      title3: 'Přepracovaná nápověda a podpora',
+          'Všechna vaše alba (zálohovaná, sdílená i v zařízení) teď najdete na jedné stránce. Můžete vyhledávat, přepínat mezi mřížkou a seznamem a řadit je podle svých preferencí.',
+      title3: 'Spousta vylepšení',
       desc3:
-          'Stránky nápovědy a podpory jsme zpříjemnili a zjednodušili. Můžete nahlásit chybu, položit otázku nebo požádat o novou funkci. Přibyla také nová sekce s našimi FAQ, kde rychle najdete odpovědi.',
+          'Fotky se stahují mnohem rychleji, generování miniatur obličejů je rychlejší a animace rozpoznávání textu je plynulejší. Nově také můžete hromadně ignorovat obličeje přímo z informačního panelu fotky. A opravili jsme spoustu chyb.',
     ),
     'de': ChangeLogStrings(
-      title1: 'Bessere Personenvorschläge',
+      title1: 'Ein frischer neuer Look',
       desc1:
-          'Wir haben die Funktionsweise der Personenvorschläge mit umfassenden Änderungen im Hintergrund verbessert. Dadurch erhalten Sie hochwertigere Vorschläge, um Ihre gesamte Mediathek schneller zu prüfen und zu taggen.',
-      desc1Item1: '',
-      desc1Item2: '',
-      title2: 'Ein vielseitigerer Feed',
+          'Wir haben der App einen frischen Look gegeben, mit neuen Schriften, Farben, Abständen und Buttons überall. Außerdem bekommt der Feed einen eigenen Tab in der unteren Navigation.',
+      title2: 'Alben, alle an einem Ort',
       desc2:
-          'Im Feed sehen Sie jetzt neue geteilte Alben und neue Fotos, die zu geteilten Alben hinzugefügt wurden. Benachrichtigungen zum Teilen führen jetzt ebenfalls direkt zum Feed, damit Sie die mit Ihnen geteilten Fotos schnell ansehen, liken und kommentieren können.',
-      title3: 'Neu gestaltete Hilfe & Support',
+          'Alle deine Alben (gesichert, geteilt und auf dem Gerät) befinden sich jetzt auf einer einzigen Seite. Suche, wechsle zwischen Raster- und Listenansicht und sortiere sie nach deinen Vorlieben.',
+      title3: 'Viele Verbesserungen',
       desc3:
-          'Wir haben die Hilfe- und Supportseiten benutzerfreundlicher gestaltet. Melden Sie Fehler, stellen Sie Fragen oder senden Sie einen Funktionswunsch. Außerdem gibt es einen neuen Bereich mit unseren FAQ-Seiten, damit Sie schnell Antworten finden.',
+          'Fotos werden viel schneller heruntergeladen, Gesichtsvorschaubilder werden schneller erstellt und die Texterkennungsanimation wirkt flüssiger. Du kannst jetzt außerdem Gesichter direkt im Infobereich eines Fotos gesammelt ignorieren. Dazu kommen viele behobene Fehler.',
     ),
     'es': ChangeLogStrings(
-      title1: 'Mejores sugerencias de personas',
+      title1: 'Un nuevo aspecto renovado',
       desc1:
-          'Hemos mejorado el funcionamiento de las sugerencias de personas con grandes cambios internos. Esto dará lugar a sugerencias de mayor calidad para que puedas revisar y etiquetar rápidamente toda tu biblioteca.',
-      desc1Item1: '',
-      desc1Item2: '',
-      title2: 'Un feed más completo',
+          'Le hemos dado a la app un aspecto renovado, con nuevas fuentes, colores, espaciado y botones en toda la aplicación. Además, el feed ahora tiene su propia pestaña en la navegación inferior.',
+      title2: 'Álbumes, todos en un solo lugar',
       desc2:
-          'Ahora verás en el feed nuevos álbumes compartidos y nuevas fotos añadidas a álbumes compartidos. Las notificaciones de compartición también te redirigen al feed para que puedas ver, dar me gusta y comentar rápidamente las fotos compartidas contigo.',
-      title3: 'Ayuda y soporte rediseñados',
+          'Todos tus álbumes (respaldados, compartidos y del dispositivo) ahora viven en una sola página. Busca, cambia entre vista de cuadrícula y lista, y ordénalos según tus preferencias.',
+      title3: 'Un montón de mejoras',
       desc3:
-          'Hemos hecho que las páginas de ayuda y soporte sean más fáciles de usar: informa de errores, haz una pregunta o solicita una función. También hay una nueva sección que te lleva a nuestras páginas de preguntas frecuentes para que puedas obtener respuestas rápidamente.',
+          'Las fotos se descargan mucho más rápido, la generación de miniaturas de rostros es más veloz y la animación de reconocimiento de texto se siente más fluida. También puedes ignorar rostros en bloque directamente desde el panel de información de una foto. Además de muchos errores corregidos.',
     ),
     'fr': ChangeLogStrings(
-      title1: 'De meilleures suggestions de personnes',
+      title1: 'Un tout nouveau style',
       desc1:
-          'Nous avons amélioré le fonctionnement des suggestions de personnes grâce à d\'importants changements internes. Cela vous offrira des suggestions de meilleure qualité pour examiner et identifier rapidement toute votre photothèque.',
-      desc1Item1: '',
-      desc1Item2: '',
-      title2: 'Un fil plus riche',
+          "Nous avons donné un nouveau souffle à l'app, avec de nouvelles polices, couleurs, espacements et de nouveaux boutons partout. Le fil dispose aussi de son propre onglet dans la navigation du bas.",
+      title2: 'Tous vos albums au même endroit',
       desc2:
-          'Vous verrez désormais dans le fil les nouveaux albums partagés ainsi que les nouvelles photos ajoutées aux albums partagés. Les notifications de partage redirigent aussi vers le fil pour que vous puissiez rapidement consulter, aimer et commenter les photos partagées avec vous.',
-      title3: 'Aide et support repensés',
+          'Tous vos albums (sauvegardés, partagés et présents sur l’appareil) sont maintenant réunis sur une seule page. Recherchez, passez de la grille à la liste, et triez-les selon vos préférences.',
+      title3: 'De nombreuses améliorations',
       desc3:
-          'Nous avons rendu les pages d\'aide et de support plus agréables à utiliser : signalez un bug, posez une question ou demandez une fonctionnalité. Une nouvelle section vous amène aussi vers nos FAQ pour obtenir rapidement des réponses.',
+          "Les photos se téléchargent beaucoup plus vite, la génération des vignettes de visages est plus rapide et l'animation de reconnaissance de texte est plus fluide. Vous pouvez aussi ignorer plusieurs visages à la fois directement depuis le panneau d'informations d'une photo. Sans oublier de nombreux bugs corrigés.",
     ),
     'it': ChangeLogStrings(
-      title1: 'Suggerimenti sulle persone migliorati',
+      title1: 'Un nuovo look fresco',
       desc1:
-          'Abbiamo migliorato il funzionamento dei suggerimenti sulle persone con grandi cambiamenti interni. Questo porterà suggerimenti di qualità superiore, così potrai rivedere e taggare rapidamente tutta la tua libreria.',
-      desc1Item1: '',
-      desc1Item2: '',
-      title2: 'Un feed più ricco',
+          "Abbiamo dato all'app un look più fresco, con nuovi font, colori, spaziature e pulsanti in tutta l'esperienza. Inoltre, il feed ha una scheda dedicata nella navigazione inferiore.",
+      title2: 'Album, tutti in un unico posto',
       desc2:
-          'Ora nel feed vedrai nuovi album condivisi e nuove foto aggiunte agli album condivisi. Anche le notifiche di condivisione ora reindirizzano al feed, così puoi vedere rapidamente, mettere mi piace e commentare le foto condivise con te.',
-      title3: 'Aiuto e supporto riprogettati',
+          'Tutti i tuoi album (sottoposti a backup, condivisi e sul dispositivo) ora si trovano in un’unica pagina. Cerca, passa dalla vista griglia alla lista e ordinali in base alle tue preferenze.',
+      title3: 'Tanti miglioramenti',
       desc3:
-          'Abbiamo reso le pagine di aiuto e supporto più semplici da usare: segnala bug, fai una domanda o invia una richiesta di funzionalità. C\'è anche una nuova sezione che ti porta alle nostre pagine FAQ per trovare rapidamente le risposte.',
+          'Le foto si scaricano molto più velocemente, la generazione delle miniature dei volti è più rapida e l’animazione del riconoscimento del testo è più fluida. Ora puoi anche ignorare più volti in blocco direttamente dal pannello informazioni di una foto. E abbiamo risolto molti bug.',
     ),
     'ja': ChangeLogStrings(
-      title1: '人物候補がさらに向上',
+      title1: '新しくなった見た目',
       desc1:
-          '人物候補の仕組みを大幅な内部改善で強化しました。これにより候補の品質が向上し、ライブラリ全体をすばやく確認してタグ付けしやすくなります。',
-      desc1Item1: '',
-      desc1Item2: '',
-      title2: 'さらに充実したフィード',
+          'アプリ全体のフォント、色、余白、ボタンを見直し、より新鮮な見た目にしました。さらに、フィードが下部ナビゲーションの専用タブになりました。',
+      title2: 'すべてのアルバムを一か所に',
       desc2:
-          'フィードに新しい共有アルバムや、共有アルバムに追加された新しい写真が表示されるようになりました。共有通知からもフィードに移動できるため、共有された写真をすぐに確認し、いいねやコメントがしやすくなります。',
-      title3: 'ヘルプとサポートを刷新',
+          'バックアップ済み、共有中、端末上のすべてのアルバムが1つのページにまとまりました。検索、グリッド表示とリスト表示の切り替え、好みに合わせた並べ替えができます。',
+      title3: 'たくさんの改善',
       desc3:
-          'ヘルプとサポートのページをより使いやすくしました。不具合の報告、質問、機能リクエストがしやすくなっています。FAQページへ移動できる新しいセクションも追加され、すばやく答えを見つけられます。',
+          '写真のダウンロードが大幅に速くなり、顔サムネイルの生成も高速化され、テキスト認識のアニメーションもよりスムーズになりました。写真の情報パネルから複数の顔をまとめて無視できるようにもなりました。その他、多くのバグも修正しています。',
     ),
     'nl': ChangeLogStrings(
-      title1: 'Betere suggesties voor personen',
+      title1: 'Een frisse nieuwe look',
       desc1:
-          'We hebben de manier waarop suggesties voor personen werken verbeterd met grote wijzigingen achter de schermen. Daardoor krijg je betere suggesties om je hele bibliotheek snel te controleren en te taggen.',
-      desc1Item1: '',
-      desc1Item2: '',
-      title2: 'Een rijkere feed',
+          'We hebben de app een frisse look gegeven, met nieuwe lettertypen, kleuren, ruimte en knoppen overal. Bovendien heeft de feed nu een eigen tab in de navigatie onderaan.',
+      title2: 'Albums, allemaal op één plek',
       desc2:
-          'Je ziet nu nieuwe gedeelde albums en nieuwe foto\'s die aan gedeelde albums zijn toegevoegd in je feed. Meldingen over delen sturen je nu ook door naar de feed, zodat je gedeelde foto\'s snel kunt bekijken, liken en erop kunt reageren.',
-      title3: 'Opnieuw ontworpen hulp en ondersteuning',
+          'Al je albums (geback-upt, gedeeld en op je apparaat) staan nu op één pagina. Zoek, wissel tussen raster- en lijstweergave en sorteer ze zoals jij wilt.',
+      title3: 'Een heleboel verbeteringen',
       desc3:
-          'We hebben de hulp- en ondersteuningspagina\'s gebruiksvriendelijker gemaakt: meld bugs, stel een vraag of dien een functieverzoek in. Er is ook een nieuwe sectie die je naar onze FAQ-pagina\'s brengt, zodat je snel antwoorden kunt vinden.',
+          'Foto’s downloaden veel sneller, gezichtminiaturen worden sneller gegenereerd en de animatie voor tekstherkenning voelt vloeiender. Je kunt nu ook meerdere gezichten tegelijk negeren vanuit het infopaneel van een foto. En we hebben heel wat bugs opgelost.',
     ),
     'no': ChangeLogStrings(
-      title1: 'Bedre personforslag',
+      title1: 'Et friskt nytt utseende',
       desc1:
-          'Vi har forbedret hvordan personforslag fungerer med store endringer under panseret. Dette vil gi deg forslag av høyere kvalitet, slik at du raskt kan gå gjennom og tagge hele biblioteket ditt.',
-      desc1Item1: '',
-      desc1Item2: '',
-      title2: 'En rikere feed',
+          'Vi har gitt appen et friskt utseende, med nye skrifter, farger, avstand og knapper overalt. I tillegg får feeden sin egen fane i bunnavigasjonen.',
+      title2: 'Album, samlet på ett sted',
       desc2:
-          'Du vil nå se nye delte album og nye bilder lagt til i delte album i feeden. Delingsvarsler tar deg også til feeden, slik at du raskt kan se, like og kommentere bildene som er delt med deg.',
-      title3: 'Nydesignet hjelp og støtte',
+          'Alle albumene dine (sikkerhetskopierte, delte og på enheten) finnes nå på én side. Søk, bytt mellom rutenett- og listevisning, og sorter dem slik du foretrekker.',
+      title3: 'Mange forbedringer',
       desc3:
-          'Vi har gjort hjelpe- og støttesidene enklere å bruke. Rapporter feil, still et spørsmål eller send inn et funksjonsønske. Det finnes også en ny seksjon som tar deg til FAQ-sidene våre, slik at du raskt kan finne svar.',
+          'Bilder lastes ned mye raskere, generering av ansiktsminiatyrer går raskere, og animasjonen for tekstgjenkjenning føles jevnere. Du kan også ignorere flere ansikter samtidig direkte fra infopanelet til et bilde. I tillegg har vi fikset en hel del feil.',
     ),
     'pl': ChangeLogStrings(
-      title1: 'Lepsze sugestie osób',
+      title1: 'Świeży, nowy wygląd',
       desc1:
-          'Ulepszyliśmy działanie sugestii osób dzięki dużym zmianom pod maską. Dzięki temu otrzymasz trafniejsze sugestie, aby szybciej przejrzeć i oznaczyć całą swoją bibliotekę.',
-      desc1Item1: '',
-      desc1Item2: '',
-      title2: 'Bogatszy kanał',
+          'Odświeżyliśmy wygląd aplikacji, wprowadzając nowe fonty, kolory, odstępy i przyciski w całej aplikacji. Dodatkowo feed ma teraz własną kartę w dolnej nawigacji.',
+      title2: 'Albumy w jednym miejscu',
       desc2:
-          'W kanale zobaczysz teraz nowe udostępnione albumy oraz nowe zdjęcia dodane do udostępnionych albumów. Powiadomienia o udostępnieniu również przekierują Cię do kanału, aby szybko obejrzeć, polubić i skomentować udostępnione Ci zdjęcia.',
-      title3: 'Przeprojektowana pomoc i wsparcie',
+          'Wszystkie Twoje albumy (z kopią zapasową, udostępnione i z urządzenia) znajdują się teraz na jednej stronie. Możesz je wyszukiwać, przełączać widok siatki i listy oraz sortować według własnych preferencji.',
+      title3: 'Mnóstwo usprawnień',
       desc3:
-          'Ułatwiliśmy korzystanie ze stron pomocy i wsparcia: zgłoś błąd, zadaj pytanie lub poproś o nową funkcję. Jest też nowa sekcja prowadząca do naszych stron FAQ, dzięki czemu szybko znajdziesz odpowiedzi.',
+          'Zdjęcia pobierają się znacznie szybciej, miniatury twarzy generują się szybciej, a animacja rozpoznawania tekstu jest płynniejsza. Możesz też zbiorczo ignorować twarze bezpośrednio z panelu informacji o zdjęciu. Do tego naprawiliśmy wiele błędów.',
     ),
     'pt_BR': ChangeLogStrings(
-      title1: 'Melhores sugestões de pessoas',
+      title1: 'Um visual renovado',
       desc1:
-          'Melhoramos como as sugestões de pessoas funcionam com grandes mudanças internas. Isso resultará em sugestões de maior qualidade para você revisar e marcar toda a sua biblioteca rapidamente.',
-      desc1Item1: '',
-      desc1Item2: '',
-      title2: 'Um feed mais rico',
+          'Demos ao app um visual renovado, com novas fontes, cores, espaçamentos e botões por toda parte. Além disso, o feed agora tem sua própria aba na navegação inferior.',
+      title2: 'Álbuns, todos em um só lugar',
       desc2:
-          'Agora você verá no feed novos álbuns compartilhados e novas fotos adicionadas a álbuns compartilhados. As notificações de compartilhamento também redirecionam para o feed para que você possa ver, curtir e comentar rapidamente as fotos compartilhadas com você.',
-      title3: 'Ajuda e suporte redesenhados',
+          'Todos os seus álbuns (com backup, compartilhados e no dispositivo) agora ficam em uma única página. Pesquise, alterne entre visualização em grade e lista, e ordene tudo conforme suas preferências.',
+      title3: 'Várias melhorias',
       desc3:
-          'Deixamos as páginas de ajuda e suporte mais fáceis de usar: relate bugs, faça uma pergunta ou envie uma solicitação de recurso. Há também uma nova seção que leva você às nossas páginas de FAQ para encontrar respostas rapidamente.',
+          'As fotos baixam muito mais rápido, a geração de miniaturas de rostos ficou mais ágil e a animação de reconhecimento de texto está mais suave. Agora você também pode ignorar rostos em massa diretamente pelo painel de informações de uma foto. E corrigimos muitos bugs.',
     ),
     'pt_PT': ChangeLogStrings(
-      title1: 'Melhores sugestões de pessoas',
+      title1: 'Um novo visual renovado',
       desc1:
-          'Melhorámos a forma como as sugestões de pessoas funcionam com grandes alterações internas. Isto vai resultar em sugestões de melhor qualidade para rever e etiquetar rapidamente toda a sua biblioteca.',
-      desc1Item1: '',
-      desc1Item2: '',
-      title2: 'Um feed mais rico',
+          'Demos à app um visual renovado, com novas fontes, cores, espaçamentos e botões em toda a experiência. Além disso, o feed passa a ter o seu próprio separador na navegação inferior.',
+      title2: 'Álbuns, todos num só lugar',
       desc2:
-          'Passará agora a ver no feed novos álbuns partilhados e novas fotografias adicionadas a álbuns partilhados. As notificações de partilha também redirecionam para o feed para que possa ver, gostar e comentar rapidamente as fotografias partilhadas consigo.',
-      title3: 'Ajuda e suporte redesenhados',
+          'Todos os seus álbuns (com cópia de segurança, partilhados e no dispositivo) estão agora numa única página. Pesquise, alterne entre grelha e lista, e ordene-os de acordo com as suas preferências.',
+      title3: 'Muitas melhorias',
       desc3:
-          'Tornámos as páginas de ajuda e suporte mais fáceis de usar: reporte erros, faça uma pergunta ou peça uma funcionalidade. Existe também uma nova secção que o leva às nossas páginas de FAQ para encontrar respostas rapidamente.',
+          'As fotografias são descarregadas muito mais depressa, a geração de miniaturas de rostos é mais rápida e a animação de reconhecimento de texto está mais suave. Agora também pode ignorar rostos em massa diretamente a partir do painel de informações de uma fotografia. E corrigimos muitos bugs.',
     ),
     'ro': ChangeLogStrings(
-      title1: 'Sugestii mai bune pentru persoane',
+      title1: 'Un aspect nou și proaspăt',
       desc1:
-          'Am îmbunătățit modul în care funcționează sugestiile pentru persoane prin schimbări majore în culise. Astfel vei primi sugestii de calitate mai bună pentru a revizui și eticheta rapid întreaga bibliotecă.',
-      desc1Item1: '',
-      desc1Item2: '',
-      title2: 'Un flux mai bogat',
+          'Am oferit aplicației un aspect nou, cu fonturi, culori, spațieri și butoane noi peste tot. În plus, feedul are acum propria filă în navigarea de jos.',
+      title2: 'Albume, toate într-un singur loc',
       desc2:
-          'Acum vei vedea în flux albume partajate noi și fotografii noi adăugate în albume partajate. Notificările de partajare te redirecționează și ele către flux, ca să poți vedea rapid, aprecia și comenta fotografiile partajate cu tine.',
-      title3: 'Ajutor și suport reproiectate',
+          'Toate albumele tale (cu backup, partajate și de pe dispozitiv) se află acum pe o singură pagină. Caută, comută între vizualizarea grilă și listă și sortează-le după preferințe.',
+      title3: 'O mulțime de îmbunătățiri',
       desc3:
-          'Am făcut paginile de ajutor și suport mai prietenoase și mai ușor de folosit: raportează erori, pune o întrebare sau trimite o cerere de funcționalitate. Există și o secțiune nouă care te duce la paginile noastre FAQ ca să găsești rapid răspunsuri.',
+          'Fotografiile se descarcă mult mai rapid, generarea miniaturilor pentru fețe este mai rapidă, iar animația de recunoaștere a textului este mai fluidă. Acum poți ignora în bloc fețe direct din panoul de informații al unei fotografii. Plus multe buguri remediate.',
     ),
     'ru': ChangeLogStrings(
-      title1: 'Улучшенные подсказки по людям',
+      title1: 'Свежий новый вид',
       desc1:
-          'Мы улучшили работу подсказок по людям с помощью крупных внутренних изменений. Благодаря этому вы будете получать более качественные подсказки, чтобы быстрее просматривать и отмечать тегами всю свою медиатеку.',
-      desc1Item1: '',
-      desc1Item2: '',
-      title2: 'Более насыщенная лента',
+          'Мы обновили внешний вид приложения: новые шрифты, цвета, отступы и кнопки по всему интерфейсу. Кроме того, лента получила отдельную вкладку в нижней навигации.',
+      title2: 'Все альбомы в одном месте',
       desc2:
-          'Теперь в ленте будут отображаться новые общие альбомы и новые фотографии, добавленные в общие альбомы. Уведомления о совместном доступе также будут перенаправлять в ленту, чтобы вы могли быстро просматривать, лайкать и комментировать фотографии, которыми с вами поделились.',
-      title3: 'Обновленные помощь и поддержка',
+          'Все ваши альбомы (с резервной копией, общие и на устройстве) теперь находятся на одной странице. Ищите, переключайтесь между сеткой и списком и сортируйте их как вам удобно.',
+      title3: 'Много улучшений',
       desc3:
-          'Мы сделали страницы помощи и поддержки более удобными: сообщайте об ошибках, задавайте вопросы или отправляйте запросы на новые функции. Также появился новый раздел, который ведет на страницы FAQ, чтобы вы могли быстро находить ответы.',
+          'Фотографии скачиваются гораздо быстрее, миниатюры лиц создаются быстрее, а анимация распознавания текста стала плавнее. Теперь также можно массово игнорировать лица прямо из панели информации о фотографии. И, конечно, мы исправили множество ошибок.',
     ),
     'tr': ChangeLogStrings(
-      title1: 'Daha iyi kişi önerileri',
+      title1: 'Yepyeni ve ferah bir görünüm',
       desc1:
-          'Kişi önerilerinin çalışma şeklini, arka planda yaptığımız büyük değişikliklerle iyileştirdik. Bu sayede tüm arşivinizi hızla gözden geçirip etiketleyebilmeniz için daha kaliteli öneriler göreceksiniz.',
-      desc1Item1: '',
-      desc1Item2: '',
-      title2: 'Daha zengin bir akış',
+          'Uygulamaya baştan sona yeni yazı tipleri, renkler, boşluklar ve düğmelerle ferah bir görünüm kazandırdık. Ayrıca akış artık alt gezinti çubuğunda kendi sekmesine sahip.',
+      title2: 'Albümler, hepsi tek yerde',
       desc2:
-          'Artık akışta yeni paylaşılan albümleri ve paylaşılan albümlere eklenen yeni fotoğrafları göreceksiniz. Paylaşım bildirimleri de sizi akışa yönlendirecek, böylece sizinle paylaşılan fotoğrafları hızlıca inceleyebilir, beğenebilir ve yorumlayabilirsiniz.',
-      title3: 'Yeniden tasarlanan Yardım ve Destek',
+          'Tüm albümleriniz (yedeklenen, paylaşılan ve cihazdaki) artık tek bir sayfada. Arama yapabilir, ızgara ve liste görünümü arasında geçiş yapabilir ve tercihlerinize göre sıralayabilirsiniz.',
+      title3: 'Bir sürü iyileştirme',
       desc3:
-          'Yardım ve destek sayfalarını kullanmayı daha kolay hale getirdik: hata bildirin, soru sorun veya özellik isteğinde bulunun. Ayrıca SSS sayfalarımıza götüren yeni bir bölüm de var, böylece hızlıca yanıt bulabilirsiniz.',
+          'Fotoğraflar çok daha hızlı indiriliyor, yüz küçük resimleri daha hızlı oluşturuluyor ve metin tanıma animasyonu daha akıcı hissettiriyor. Ayrıca artık bir fotoğrafın bilgi panelinden yüzleri toplu olarak yok sayabilirsiniz. Birçok hata da giderildi.',
     ),
     'uk': ChangeLogStrings(
-      title1: 'Кращі підказки щодо людей',
+      title1: 'Свіжий новий вигляд',
       desc1:
-          'Ми покращили роботу підказок щодо людей завдяки великим внутрішнім змінам. Це дасть вам якісніші підказки, щоб ви могли швидко переглядати й позначати тегами всю свою бібліотеку.',
-      desc1Item1: '',
-      desc1Item2: '',
-      title2: 'Багатша стрічка',
+          'Ми оновили вигляд застосунку: нові шрифти, кольори, відступи й кнопки по всьому інтерфейсу. Крім того, стрічка отримала власну вкладку в нижній навігації.',
+      title2: 'Усі альбоми в одному місці',
       desc2:
-          'Тепер у стрічці ви бачитимете нові спільні альбоми та нові фото, додані до спільних альбомів. Сповіщення про поширення також перенаправлятимуть до стрічки, щоб ви могли швидко переглядати, вподобати й коментувати фото, якими з вами поділилися.',
-      title3: 'Оновлені довідка та підтримка',
+          'Усі ваші альбоми (з резервною копією, спільні та на пристрої) тепер на одній сторінці. Шукайте, перемикайтеся між сіткою та списком і впорядковуйте їх за власними вподобаннями.',
+      title3: 'Багато покращень',
       desc3:
-          'Ми зробили сторінки довідки та підтримки зручнішими: повідомляйте про помилки, ставте запитання або надсилайте запити на нові функції. Також з\'явився новий розділ, який веде до наших сторінок FAQ, щоб ви могли швидко знаходити відповіді.',
+          'Фотографії завантажуються значно швидше, мініатюри облич створюються швидше, а анімація розпізнавання тексту стала плавнішою. Тепер також можна масово ігнорувати обличчя прямо з панелі інформації про фото. І ми виправили багато помилок.',
     ),
     'vi': ChangeLogStrings(
-      title1: 'Gợi ý nhận diện người tốt hơn',
+      title1: 'Diện mạo mới mẻ',
       desc1:
-          'Chúng tôi đã cải thiện cách hoạt động của gợi ý người bằng những thay đổi lớn ở phía sau. Điều này sẽ mang lại các gợi ý chất lượng cao hơn để bạn nhanh chóng xem lại và gắn thẻ toàn bộ thư viện của mình.',
-      desc1Item1: '',
-      desc1Item2: '',
-      title2: 'Bảng tin phong phú hơn',
+          'Chúng tôi đã làm mới giao diện ứng dụng với phông chữ, màu sắc, khoảng cách và nút mới trên toàn bộ ứng dụng. Ngoài ra, bảng tin giờ có tab riêng ở thanh điều hướng dưới cùng.',
+      title2: 'Tất cả album ở một nơi',
       desc2:
-          'Giờ đây bạn sẽ thấy các album chia sẻ mới và các ảnh mới được thêm vào album chia sẻ trong bảng tin. Thông báo chia sẻ cũng sẽ chuyển hướng đến bảng tin để bạn có thể nhanh chóng xem, thích và bình luận về những ảnh được chia sẻ với mình.',
-      title3: 'Trợ giúp và hỗ trợ được thiết kế lại',
+          'Tất cả album của bạn (đã sao lưu, được chia sẻ và trên thiết bị) giờ nằm trên một trang duy nhất. Tìm kiếm, chuyển giữa chế độ lưới và danh sách, rồi sắp xếp theo ý bạn.',
+      title3: 'Rất nhiều cải tiến',
       desc3:
-          'Chúng tôi đã làm cho các trang trợ giúp và hỗ trợ thân thiện hơn khi sử dụng: báo lỗi, đặt câu hỏi hoặc gửi yêu cầu tính năng. Ngoài ra còn có một mục mới đưa bạn tới các trang FAQ để nhanh chóng tìm câu trả lời.',
+          'Ảnh tải xuống nhanh hơn nhiều, việc tạo ảnh thu nhỏ khuôn mặt nhanh hơn và hoạt ảnh nhận dạng văn bản mượt hơn. Giờ bạn cũng có thể bỏ qua hàng loạt khuôn mặt ngay từ bảng thông tin của ảnh. Cùng với rất nhiều lỗi đã được sửa.',
     ),
     'zh_CN': ChangeLogStrings(
-      title1: '更好的人物建议',
-      desc1: '我们通过大量底层改进优化了人物建议的工作方式。这将带来更高质量的建议，帮助你快速查看并标记整个资料库。',
-      desc1Item1: '',
-      desc1Item2: '',
-      title2: '更丰富的动态',
-      desc2:
-          '现在你会在动态中看到新的共享相册，以及添加到共享相册中的新照片。共享通知也会跳转到动态，方便你快速查看、点赞和评论分享给你的照片。',
-      title3: '重新设计的帮助与支持',
+      title1: '焕然一新的外观',
+      desc1: '我们为应用带来了全新的外观，整体更新了字体、颜色、间距和按钮。另外，动态现在在底部导航中拥有自己的标签页。',
+      title2: '所有相册，集中一处',
+      desc2: '你的所有相册（已备份、已共享和设备上的相册）现在都集中在一个页面。你可以搜索、在网格和列表视图之间切换，并按自己的偏好排序。',
+      title3: '一系列改进',
       desc3:
-          '我们让帮助与支持页面变得更易用，你可以在那里报告问题、提出疑问或提交功能请求。我们还新增了一个版块，带你前往常见问题页面，方便你快速找到答案。',
+          '照片下载速度大幅提升，人脸缩略图生成更快，文字识别动画也更流畅。现在你还可以直接从照片信息面板批量忽略人脸。此外，我们还修复了大量问题。',
     ),
   };
 
   static const Map<String, ChangeLogStrings> _offlineTranslations = {
     'en': ChangeLogStrings(
-      title1: '',
-      desc1: '',
-      desc1Item1: '',
-      desc1Item2: '',
-      title2: '',
-      desc2: '',
-      title3: '',
-      desc3: '',
+      title1: 'A fresh new look',
+      desc1:
+          "We've given the app a fresh look, with new fonts, colors, spacing, and buttons throughout. Albums has also been redesigned for easier browsing.",
+    ),
+    'cs': ChangeLogStrings(
+      title1: 'Zcela nový vzhled',
+      desc1:
+          'Dali jsme aplikaci svěží vzhled s novými fonty, barvami, rozestupy a tlačítky napříč celou aplikací. Alba jsme také přepracovali pro snazší procházení.',
+    ),
+    'de': ChangeLogStrings(
+      title1: 'Ein frischer neuer Look',
+      desc1:
+          'Wir haben der App einen frischen Look gegeben, mit neuen Schriften, Farben, Abständen und Buttons überall. Alben wurden außerdem für einfacheres Stöbern neu gestaltet.',
+    ),
+    'es': ChangeLogStrings(
+      title1: 'Un nuevo aspecto renovado',
+      desc1:
+          'Le hemos dado a la app un aspecto renovado, con nuevas fuentes, colores, espaciado y botones en toda la aplicación. Álbumes también se ha rediseñado para que sea más fácil explorarlos.',
+    ),
+    'fr': ChangeLogStrings(
+      title1: 'Un tout nouveau style',
+      desc1:
+          "Nous avons donné un nouveau souffle à l'app, avec de nouvelles polices, couleurs, espacements et de nouveaux boutons partout. Les albums ont aussi été repensés pour une navigation plus simple.",
+    ),
+    'it': ChangeLogStrings(
+      title1: 'Un nuovo look fresco',
+      desc1:
+          "Abbiamo dato all'app un look più fresco, con nuovi font, colori, spaziature e pulsanti in tutta l'esperienza. Anche Album è stato ridisegnato per una navigazione più semplice.",
+    ),
+    'ja': ChangeLogStrings(
+      title1: '新しくなった見た目',
+      desc1:
+          'アプリ全体のフォント、色、余白、ボタンを見直し、より新鮮な見た目にしました。アルバムもより見つけやすく閲覧しやすいように再設計しました。',
+    ),
+    'nl': ChangeLogStrings(
+      title1: 'Een frisse nieuwe look',
+      desc1:
+          'We hebben de app een frisse look gegeven, met nieuwe lettertypen, kleuren, ruimte en knoppen overal. Albums is ook opnieuw ontworpen zodat je er makkelijker doorheen bladert.',
+    ),
+    'no': ChangeLogStrings(
+      title1: 'Et friskt nytt utseende',
+      desc1:
+          'Vi har gitt appen et friskt utseende, med nye skrifter, farger, avstand og knapper overalt. Album er også redesignet for enklere blaing.',
+    ),
+    'pl': ChangeLogStrings(
+      title1: 'Świeży, nowy wygląd',
+      desc1:
+          'Odświeżyliśmy wygląd aplikacji, wprowadzając nowe fonty, kolory, odstępy i przyciski w całej aplikacji. Albumy zostały też przeprojektowane, aby łatwiej było je przeglądać.',
+    ),
+    'pt_BR': ChangeLogStrings(
+      title1: 'Um visual renovado',
+      desc1:
+          'Demos ao app um visual renovado, com novas fontes, cores, espaçamentos e botões por toda parte. Álbuns também foi redesenhado para facilitar a navegação.',
+    ),
+    'pt_PT': ChangeLogStrings(
+      title1: 'Um novo visual renovado',
+      desc1:
+          'Demos à app um visual renovado, com novas fontes, cores, espaçamentos e botões em toda a experiência. Os álbuns também foram redesenhados para facilitar a navegação.',
+    ),
+    'ro': ChangeLogStrings(
+      title1: 'Un aspect nou și proaspăt',
+      desc1:
+          'Am oferit aplicației un aspect nou, cu fonturi, culori, spațieri și butoane noi peste tot. Albumele au fost și ele redesenate pentru o navigare mai ușoară.',
+    ),
+    'ru': ChangeLogStrings(
+      title1: 'Свежий новый вид',
+      desc1:
+          'Мы обновили внешний вид приложения: новые шрифты, цвета, отступы и кнопки по всему интерфейсу. Альбомы тоже были переработаны, чтобы их было удобнее просматривать.',
+    ),
+    'tr': ChangeLogStrings(
+      title1: 'Yepyeni ve ferah bir görünüm',
+      desc1:
+          'Uygulamaya baştan sona yeni yazı tipleri, renkler, boşluklar ve düğmelerle ferah bir görünüm kazandırdık. Albümler de daha kolay gezinme için yeniden tasarlandı.',
+    ),
+    'uk': ChangeLogStrings(
+      title1: 'Свіжий новий вигляд',
+      desc1:
+          'Ми оновили вигляд застосунку: нові шрифти, кольори, відступи й кнопки по всьому інтерфейсу. Альбоми також перероблено для зручнішого перегляду.',
+    ),
+    'vi': ChangeLogStrings(
+      title1: 'Diện mạo mới mẻ',
+      desc1:
+          'Chúng tôi đã làm mới giao diện ứng dụng với phông chữ, màu sắc, khoảng cách và nút mới trên toàn bộ ứng dụng. Album cũng được thiết kế lại để duyệt dễ hơn.',
+    ),
+    'zh_CN': ChangeLogStrings(
+      title1: '焕然一新的外观',
+      desc1: '我们为应用带来了全新的外观，整体更新了字体、颜色、间距和按钮。相册也经过重新设计，浏览起来更轻松。',
     ),
   };
 }

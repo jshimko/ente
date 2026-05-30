@@ -42,7 +42,7 @@ enum PeopleActivity {
   posing,
   background,
   sports,
-  roadtrip
+  roadtrip,
 }
 
 String activityQuery(PeopleActivity activity) {
@@ -124,13 +124,13 @@ class PeopleMemory extends SmartMemory {
     this.isBirthday,
     this.newAge,
   }) : super(
-          memories,
-          MemoryType.people,
-          title ?? '',
-          firstDateToShow,
-          lastDateToShow,
-          id: id,
-        );
+         memories,
+         MemoryType.people,
+         title ?? '',
+         firstDateToShow,
+         lastDateToShow,
+         id: id,
+       );
 
   PeopleMemory copyWith({
     int? firstDateToShow,
@@ -166,7 +166,7 @@ class PeopleMemory extends SmartMemory {
         case PeopleMemoryType.spotlight:
           return locals.unnamedPeopleSpotlight;
         case PeopleMemoryType.lastTimeYouSawThem:
-          return locals.unnamedPeopleLastTimeYouSawThem;
+          return locals.unnamedPeopleThrowbackTogether;
       }
     }
     switch (peopleMemoryType) {
@@ -190,14 +190,13 @@ class PeopleMemory extends SmartMemory {
           }
         }
       case PeopleMemoryType.lastTimeYouSawThem:
-        return locals.lastTimeWithThem(name: personName!);
+        return locals.throwbackWithThem(name: personName!);
     }
   }
 }
 
-typedef PeopleSelectionBuilder = Future<List<Memory>> Function(
-  List<Memory> memories,
-);
+typedef PeopleSelectionBuilder =
+    Future<List<Memory>> Function(List<Memory> memories);
 
 class PeopleMemoryCandidate {
   PeopleMemoryCandidate({

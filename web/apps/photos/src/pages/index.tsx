@@ -14,6 +14,10 @@ import {
 import log from "ente-base/log";
 import { customAPIHost } from "ente-base/origins";
 import {
+    isRegistrationDisabled,
+    resetRegistrationDisabledCache,
+} from "ente-base/server-config";
+import {
     masterKeyFromSession,
     updateSessionFromElectronSafeStorageIfNeeded,
 } from "ente-base/session";
@@ -31,13 +35,15 @@ const Page: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [showLogin, setShowLogin] = useState(true);
     const [host, setHost] = useState<string | undefined>(undefined);
+    const [registrationDisabled, setRegistrationDisabled] = useState(false);
 
     const router = useRouter();
 
-    const refreshHost = useCallback(
-        () => void customAPIHost().then(setHost),
-        [],
-    );
+    const refreshHost = useCallback(() => {
+        resetRegistrationDisabledCache();
+        void customAPIHost().then(setHost);
+        void isRegistrationDisabled().then(setRegistrationDisabled);
+    }, []);
 
     useEffect(() => {
         void (async () => {
@@ -51,7 +57,7 @@ const Page: React.FC = () => {
                     "ente-wasm"
                 );
                 console.log(file_download_url("https://example.org", 88n));
-                const client = new HttpClient("https://api.ente.io");
+                const client = new HttpClient("https://api.ente.com");
                 console.log(await client.get("/ping"));
             }
 
@@ -138,13 +144,18 @@ const Page: React.FC = () => {
                         <Slideshow />
                     </SlideshowPanel>
                     <MobileBox>
+                        {!registrationDisabled && (
+                            <FocusVisibleButton
+                                color="accent"
+                                onClick={() => router.push("/signup")}
+                            >
+                                {t("new_to_ente")}
+                            </FocusVisibleButton>
+                        )}
                         <FocusVisibleButton
-                            color="accent"
-                            onClick={() => router.push("/signup")}
-                        >
-                            {t("new_to_ente")}
-                        </FocusVisibleButton>
-                        <FocusVisibleButton
+                            color={
+                                registrationDisabled ? "accent" : undefined
+                            }
                             onClick={() => router.push("/login")}
                         >
                             {t("existing_user")}
@@ -161,9 +172,9 @@ const Page: React.FC = () => {
                         ]}
                     >
                         <Stack sx={{ width: "320px", py: 4, gap: 4 }}>
-                            {showLogin ? (
+                            {showLogin || registrationDisabled ? (
                                 <LoginContents
-                                    {...{ host }}
+                                    {...{ host, registrationDisabled }}
                                     onSignUp={() => setShowLogin(false)}
                                 />
                             ) : (
@@ -206,7 +217,7 @@ const TappableContainer: React.FC<
     const [showDevSettings, setShowDevSettings] = useState(false);
 
     const handleClick: React.MouseEventHandler = (event) => {
-        // Don't allow this when running on (e.g.) web.ente.io.
+        // Don't allow this when running on (e.g.) photos.ente.com.
         if (!shouldAllowChangingAPIOrigin()) return;
 
         // Ignore clicks on buttons when counting up towards 7.
@@ -255,7 +266,11 @@ const TappableContainer: React.FC<
  */
 const shouldAllowChangingAPIOrigin = () => {
     const hostname = new URL(window.location.origin).hostname;
-    return !(hostname.endsWith(".ente.io") || hostname.endsWith(".ente.sh"));
+    return !(
+        hostname.endsWith(".ente.com") ||
+        hostname.endsWith(".ente.io") ||
+        hostname.endsWith(".ente.sh")
+    );
 };
 
 const SlideshowPanel = styled("div")`

@@ -85,7 +85,7 @@ import 'app_localizations_zh.dart';
 /// property.
 abstract class AppLocalizations {
   AppLocalizations(String locale)
-      : localeName = intl.Intl.canonicalizedLocale(locale.toString());
+    : localeName = intl.Intl.canonicalizedLocale(locale.toString());
 
   final String localeName;
 
@@ -108,11 +108,11 @@ abstract class AppLocalizations {
   /// of delegates is preferred or required.
   static const List<LocalizationsDelegate<dynamic>> localizationsDelegates =
       <LocalizationsDelegate<dynamic>>[
-    delegate,
-    GlobalMaterialLocalizations.delegate,
-    GlobalCupertinoLocalizations.delegate,
-    GlobalWidgetsLocalizations.delegate,
-  ];
+        delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+      ];
 
   /// A list of this localizations delegate's supported locales.
   static const List<Locale> supportedLocales = <Locale>[
@@ -141,7 +141,7 @@ abstract class AppLocalizations {
     Locale('vi'),
     Locale('zh'),
     Locale('zh', 'CN'),
-    Locale('zh', 'TW')
+    Locale('zh', 'TW'),
   ];
 
   /// No description provided for @onBoardingBody.
@@ -270,6 +270,48 @@ abstract class AppLocalizations {
   /// **'Downloading... {percentage}%'**
   String downloadingProgress(int percentage);
 
+  /// No description provided for @keepOffline.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep offline'**
+  String get keepOffline;
+
+  /// No description provided for @cloudOnly.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove offline'**
+  String get cloudOnly;
+
+  /// No description provided for @savingOffline.
+  ///
+  /// In en, this message translates to:
+  /// **'Saving offline...'**
+  String get savingOffline;
+
+  /// Success message when files are saved offline
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, one{{count} file saved offline} other{{count} files saved offline}}'**
+  String filesAvailableOffline(int count);
+
+  /// Partial success message for offline save
+  ///
+  /// In en, this message translates to:
+  /// **'{successCount, plural, one{Saved {successCount} file offline} other{Saved {successCount} files offline}}, {failureCount, plural, one{{failureCount} failed} other{{failureCount} failed}}'**
+  String filesAvailableOfflinePartial(int successCount, int failureCount);
+
+  /// Failure message when files could not be saved offline
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, one{Failed to save {count} file offline} other{Failed to save {count} files offline}}'**
+  String failedToSaveFilesOffline(int count);
+
+  /// Success message when offline copies are removed
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, one{{count} file removed from offline} other{{count} files removed from offline}}'**
+  String filesRemovedFromOffline(int count);
+
   /// No description provided for @downloadFailed.
   ///
   /// In en, this message translates to:
@@ -299,6 +341,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Could not open item: {error}'**
   String couldNotOpenFile(String error);
+
+  /// Message shown when Android cannot find an app to open or preview a file
+  ///
+  /// In en, this message translates to:
+  /// **'No app is available to preview this file. You can download it and open it with another app.'**
+  String get noAppToOpenFileDownloadInstead;
 
   /// Time format for minutes ago
   ///
@@ -603,7 +651,7 @@ abstract class AppLocalizations {
   /// Number of items in a collection
   ///
   /// In en, this message translates to:
-  /// **'{count, plural, =0{no items} =1{1 item} other{{count} items}}'**
+  /// **'{count, plural, =0{no items} one{{count} item} other{{count} items}}'**
   String files(int count);
 
   /// No description provided for @createCollectionTooltip.
@@ -1134,6 +1182,18 @@ abstract class AppLocalizations {
   /// **'Help and Support'**
   String get helpAndSupport;
 
+  /// No description provided for @getInTouch.
+  ///
+  /// In en, this message translates to:
+  /// **'Get in touch'**
+  String get getInTouch;
+
+  /// No description provided for @browseHelpPages.
+  ///
+  /// In en, this message translates to:
+  /// **'Browse help pages'**
+  String get browseHelpPages;
+
   /// No description provided for @contactSupport.
   ///
   /// In en, this message translates to:
@@ -1146,11 +1206,23 @@ abstract class AppLocalizations {
   /// **'Help'**
   String get help;
 
+  /// No description provided for @askAQuestion.
+  ///
+  /// In en, this message translates to:
+  /// **'Ask a question'**
+  String get askAQuestion;
+
   /// No description provided for @suggestFeatures.
   ///
   /// In en, this message translates to:
   /// **'Suggest features'**
   String get suggestFeatures;
+
+  /// No description provided for @requestAFeature.
+  ///
+  /// In en, this message translates to:
+  /// **'Request a feature'**
+  String get requestAFeature;
 
   /// No description provided for @reportABug.
   ///
@@ -1158,11 +1230,83 @@ abstract class AppLocalizations {
   /// **'Report a bug'**
   String get reportABug;
 
+  /// No description provided for @reportAnIssue.
+  ///
+  /// In en, this message translates to:
+  /// **'Report an issue'**
+  String get reportAnIssue;
+
   /// No description provided for @reportBug.
   ///
   /// In en, this message translates to:
   /// **'Report bug'**
   String get reportBug;
+
+  /// No description provided for @viewAllHelpTopics.
+  ///
+  /// In en, this message translates to:
+  /// **'View all help topics'**
+  String get viewAllHelpTopics;
+
+  /// No description provided for @gettingStarted.
+  ///
+  /// In en, this message translates to:
+  /// **'Getting started'**
+  String get gettingStarted;
+
+  /// No description provided for @gettingStartedDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Install Locker, create an account, and save your first item'**
+  String get gettingStartedDesc;
+
+  /// No description provided for @informationTypes.
+  ///
+  /// In en, this message translates to:
+  /// **'Information types'**
+  String get informationTypes;
+
+  /// No description provided for @informationTypesDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Documents, notes, cards, passwords, and other item types'**
+  String get informationTypesDesc;
+
+  /// No description provided for @organization.
+  ///
+  /// In en, this message translates to:
+  /// **'Organization'**
+  String get organization;
+
+  /// No description provided for @organizationDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Collections, favorites, search, and ways to keep items organized'**
+  String get organizationDesc;
+
+  /// No description provided for @legacyDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Trusted contacts, Legacy Kit, and account recovery planning'**
+  String get legacyDesc;
+
+  /// No description provided for @securityDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Encryption, recovery keys, app lock, and account protection'**
+  String get securityDesc;
+
+  /// No description provided for @troubleshooting.
+  ///
+  /// In en, this message translates to:
+  /// **'Troubleshooting'**
+  String get troubleshooting;
+
+  /// No description provided for @troubleshootingDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Common issues and their solutions'**
+  String get troubleshootingDesc;
 
   /// Dialog body text for sending logs in Locker app (without file name warning)
   ///
@@ -1590,6 +1734,12 @@ abstract class AppLocalizations {
   /// **'Manage link'**
   String get manageLink;
 
+  /// No description provided for @linkLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Link'**
+  String get linkLabel;
+
   /// No description provided for @linkExpiry.
   ///
   /// In en, this message translates to:
@@ -1779,7 +1929,7 @@ abstract class AppLocalizations {
   /// No description provided for @shareWithPeopleSectionTitle.
   ///
   /// In en, this message translates to:
-  /// **'{numberOfPeople, plural, =0 {Share with specific people} =1 {Shared with 1 person} other {Shared with {numberOfPeople} people}}'**
+  /// **'{numberOfPeople, plural, =0 {Share with specific people} one {Shared with {numberOfPeople} person} other {Shared with {numberOfPeople} people}}'**
   String shareWithPeopleSectionTitle(int numberOfPeople);
 
   /// No description provided for @linkHasExpired.
@@ -1863,25 +2013,25 @@ abstract class AppLocalizations {
   /// Number of viewers that were successfully added to a collection.
   ///
   /// In en, this message translates to:
-  /// **'{count, plural, =0 {Added 0 viewers} =1 {Added 1 viewer} other {Added {count} viewers}}'**
+  /// **'{count, plural, =0 {Added 0 viewers} one {Added {count} viewer} other {Added {count} viewers}}'**
   String viewersSuccessfullyAdded(int count);
 
   /// Number of collaborators that were successfully added to a collection.
   ///
   /// In en, this message translates to:
-  /// **'{count, plural, =0 {Added 0 collaborator} =1 {Added 1 collaborator} other {Added {count} collaborators}}'**
+  /// **'{count, plural, =0 {Added 0 collaborator} one {Added {count} collaborator} other {Added {count} collaborators}}'**
   String collaboratorsSuccessfullyAdded(int count);
 
   /// No description provided for @addViewers.
   ///
   /// In en, this message translates to:
-  /// **'{count, plural, =0 {Add viewer} =1 {Add viewer} other {Add viewers}}'**
+  /// **'{count, plural, =0 {Add viewer} one {Add viewer} other {Add viewers}}'**
   String addViewers(num count);
 
   /// No description provided for @addCollaborators.
   ///
   /// In en, this message translates to:
-  /// **'{count, plural, =0 {Add collaborator} =1 {Add collaborator} other {Add collaborators}}'**
+  /// **'{count, plural, =0 {Add collaborator} one {Add collaborator} other {Add collaborators}}'**
   String addCollaborators(num count);
 
   /// No description provided for @longPressAnEmailToVerifyEndToEndEncryption.
@@ -2091,7 +2241,7 @@ abstract class AppLocalizations {
   /// The count of participants in an album
   ///
   /// In en, this message translates to:
-  /// **'{count, plural, =0 {No Participants} =1 {1 Participant} other {{count} Participants}}'**
+  /// **'{count, plural, =0 {No Participants} one {{count} Participant} other {{count} Participants}}'**
   String albumParticipantsCount(int count);
 
   /// No description provided for @addMore.
@@ -2349,7 +2499,7 @@ abstract class AppLocalizations {
   /// Number of items selected for upload
   ///
   /// In en, this message translates to:
-  /// **'{count, plural, =0{No items selected} =1{1 item selected} other{{count} items selected}}'**
+  /// **'{count, plural, =0{No items selected} one{{count} item selected} other{{count} items selected}}'**
   String filesSelected(int count);
 
   /// No description provided for @addToCollection.
@@ -2409,7 +2559,7 @@ abstract class AppLocalizations {
   /// Success message when record is saved to multiple collections
   ///
   /// In en, this message translates to:
-  /// **'Record saved to {count, plural, =1{1 collection} other{{count} collections}} successfully'**
+  /// **'Record saved to {count, plural, one{{count} collection} other{{count} collections}} successfully'**
   String recordSavedToMultipleCollections(int count);
 
   /// Message when a field is copied to clipboard
@@ -2421,7 +2571,7 @@ abstract class AppLocalizations {
   /// Search results count message
   ///
   /// In en, this message translates to:
-  /// **'{count, plural, =1{1 result} other{{count} results}} for \"{query}\"'**
+  /// **'{count, plural, one{{count} result} other{{count} results}} for \"{query}\"'**
   String searchResultsCount(int count, String query);
 
   /// No description provided for @locker.
@@ -2637,13 +2787,13 @@ abstract class AppLocalizations {
   /// Confirmation message body for deleting multiple collections
   ///
   /// In en, this message translates to:
-  /// **'{count, plural, =1{1 collection} other{{count} collections}} will be deleted permanently.'**
+  /// **'{count, plural, one{{count} collection} other{{count} collections}} will be deleted permanently.'**
   String deleteMultipleCollectionsDialogBody(int count);
 
   /// Confirmation message body for deleting multiple items
   ///
   /// In en, this message translates to:
-  /// **'{count, plural, =1{1 item} other{{count} items}} will be deleted permanently.'**
+  /// **'{count, plural, one{{count} item} other{{count} items}} will be deleted permanently.'**
   String deleteMultipleFilesDialogBody(int count);
 
   /// Checkbox label asking whether to delete collection items everywhere
@@ -2655,13 +2805,13 @@ abstract class AppLocalizations {
   /// Button label for confirming deletion of one or more collections
   ///
   /// In en, this message translates to:
-  /// **'Yes, delete {count, plural, =1{collection} other{collections}}'**
+  /// **'Yes, delete {count, plural, one{collection} other{collections}}'**
   String yesDeleteCollections(int count);
 
   /// Button label for confirming deletion of one or more items
   ///
   /// In en, this message translates to:
-  /// **'Yes, delete {count, plural, =1{item} other{items}}'**
+  /// **'Yes, delete {count, plural, one{item} other{items}}'**
   String yesDeleteFiles(int count);
 
   /// No description provided for @usage.
@@ -2715,7 +2865,7 @@ abstract class AppLocalizations {
   /// Success message when items are marked as important
   ///
   /// In en, this message translates to:
-  /// **'{count, plural, =1{1 item marked as important} other{{count} items marked as important}}'**
+  /// **'{count, plural, one{{count} item marked as important} other{{count} items marked as important}}'**
   String filesMarkedAsImportant(int count);
 
   /// No description provided for @allFilesAlreadyMarkedAsImportant.
@@ -2753,6 +2903,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Shared with'**
   String get sharedWith;
+
+  /// No description provided for @shareCollection.
+  ///
+  /// In en, this message translates to:
+  /// **'Share collection'**
+  String get shareCollection;
 
   /// No description provided for @shareLater.
   ///
@@ -2859,13 +3015,13 @@ abstract class AppLocalizations {
   /// Number of items selected
   ///
   /// In en, this message translates to:
-  /// **'{count, plural, =1{1 selected} other{{count} selected}}'**
+  /// **'{count, plural, one{{count} selected} other{{count} selected}}'**
   String selectedCount(int count);
 
   /// Message when action is not supported for shared files
   ///
   /// In en, this message translates to:
-  /// **'{count, plural, =1{Action is not supported for 1 shared file} other{Action is not supported for {count} shared files}}'**
+  /// **'{count, plural, one{Action is not supported for {count} shared file} other{Action is not supported for {count} shared files}}'**
   String actionNotSupportedForSharedFiles(int count);
 
   /// No description provided for @addTo.
@@ -2949,7 +3105,7 @@ abstract class AppLocalizations {
   /// Success message when leaving collections
   ///
   /// In en, this message translates to:
-  /// **'{count, plural, =1{Left 1 collection successfully} other{Left {count} collections successfully}}'**
+  /// **'{count, plural, one{Left {count} collection successfully} other{Left {count} collections successfully}}'**
   String leftCollectionsSuccessfully(int count);
 
   /// No description provided for @removePublicLink.
@@ -2967,7 +3123,7 @@ abstract class AppLocalizations {
   /// Success message when collections are deleted
   ///
   /// In en, this message translates to:
-  /// **'{count, plural, =1{1 collection deleted successfully} other{{count} collections deleted successfully}}'**
+  /// **'{count, plural, one{{count} collection deleted successfully} other{{count} collections deleted successfully}}'**
   String collectionsDeletedSuccessfully(int count);
 
   /// No description provided for @restoreToCollection.
@@ -2985,7 +3141,7 @@ abstract class AppLocalizations {
   /// Success message when items are restored from trash
   ///
   /// In en, this message translates to:
-  /// **'{count, plural, =1{1 item restored successfully} other{{count} items restored successfully}}'**
+  /// **'{count, plural, one{{count} item restored successfully} other{{count} items restored successfully}}'**
   String filesRestoredSuccessfully(int count);
 
   /// No description provided for @failedToRestoreFiles.
@@ -3003,7 +3159,7 @@ abstract class AppLocalizations {
   /// Confirmation body for permanent deletion from trash
   ///
   /// In en, this message translates to:
-  /// **'{count, plural, =1{This item} other{These {count} items}} will be permanently deleted and cannot be recovered.'**
+  /// **'{count, plural, one{This item} other{These {count} items}} will be permanently deleted and cannot be recovered.'**
   String permanentlyDeleteFilesBody(int count);
 
   /// No description provided for @yesDelete.
@@ -3021,7 +3177,7 @@ abstract class AppLocalizations {
   /// Success message when items are permanently deleted from trash
   ///
   /// In en, this message translates to:
-  /// **'{count, plural, =1{1 item deleted permanently} other{{count} items deleted permanently}}'**
+  /// **'{count, plural, one{{count} item deleted permanently} other{{count} items deleted permanently}}'**
   String filesDeletedPermanently(int count);
 
   /// No description provided for @failedToDeleteFiles.
@@ -3114,31 +3270,31 @@ class _AppLocalizationsDelegate
 
   @override
   bool isSupported(Locale locale) => <String>[
-        'ar',
-        'cs',
-        'da',
-        'de',
-        'el',
-        'en',
-        'es',
-        'fi',
-        'fr',
-        'hi',
-        'hu',
-        'it',
-        'ja',
-        'ko',
-        'nl',
-        'pl',
-        'pt',
-        'ro',
-        'ru',
-        'sv',
-        'tr',
-        'uk',
-        'vi',
-        'zh'
-      ].contains(locale.languageCode);
+    'ar',
+    'cs',
+    'da',
+    'de',
+    'el',
+    'en',
+    'es',
+    'fi',
+    'fr',
+    'hi',
+    'hu',
+    'it',
+    'ja',
+    'ko',
+    'nl',
+    'pl',
+    'pt',
+    'ro',
+    'ru',
+    'sv',
+    'tr',
+    'uk',
+    'vi',
+    'zh',
+  ].contains(locale.languageCode);
 
   @override
   bool shouldReload(_AppLocalizationsDelegate old) => false;
@@ -3212,8 +3368,9 @@ AppLocalizations lookupAppLocalizations(Locale locale) {
   }
 
   throw FlutterError(
-      'AppLocalizations.delegate failed to load unsupported locale "$locale". This is likely '
-      'an issue with the localizations generation tool. Please file an issue '
-      'on GitHub with a reproducible sample app and the gen-l10n configuration '
-      'that was used.');
+    'AppLocalizations.delegate failed to load unsupported locale "$locale". This is likely '
+    'an issue with the localizations generation tool. Please file an issue '
+    'on GitHub with a reproducible sample app and the gen-l10n configuration '
+    'that was used.',
+  );
 }

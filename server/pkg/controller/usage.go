@@ -12,6 +12,7 @@ import (
 	"github.com/ente-io/museum/pkg/controller/usercache"
 	"github.com/ente-io/museum/pkg/repo"
 	"github.com/ente-io/stacktrace"
+	"github.com/spf13/viper"
 )
 
 // UsageController exposes functions which can be used to check around storage
@@ -81,6 +82,9 @@ func (c *UsageController) checkAndUpdateCache(ctx context.Context, userID int64,
 }
 
 func (c *UsageController) canUploadFile(ctx context.Context, userID int64, size *int64, app ente.App) error {
+	if viper.GetBool("internal.is-self-hosted") {
+		return nil
+	}
 	familyAdminID, err := c.UserRepo.GetFamilyAdminID(userID)
 	if err != nil {
 		return stacktrace.Propagate(err, "")

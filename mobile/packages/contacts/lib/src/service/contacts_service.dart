@@ -17,9 +17,9 @@ class ContactsService {
     required SharedPreferences preferences,
     ContactsDatabase? database,
     ContactsRustApi? rustApi,
-  })  : _preferences = preferences,
-        _database = database ?? ContactsDatabase(),
-        _rustApi = rustApi ?? const FrbContactsRustApi();
+  }) : _preferences = preferences,
+       _database = database ?? ContactsDatabase(),
+       _rustApi = rustApi ?? const FrbContactsRustApi();
 
   final SharedPreferences _preferences;
   final ContactsDatabase _database;
@@ -31,7 +31,9 @@ class ContactsService {
 
   Future<void> open(ContactsSession session) async {
     final accountKey = await session.resolveAccountKey();
-    final cachedRootKey = _cachedRootKey(session.userId);
+    final cachedWrappedRootContactKey = _cachedWrappedRootContactKey(
+      session.userId,
+    );
     final opened = await _rustApi
         .open(
           OpenContactsContextInput(
@@ -39,7 +41,7 @@ class ContactsService {
             authToken: session.authToken,
             userId: session.userId,
             accountKey: accountKey,
-            cachedRootKey: cachedRootKey,
+            cachedWrappedRootContactKey: cachedWrappedRootContactKey,
             userAgent: session.userAgent,
             clientPackage: session.clientPackage,
             clientVersion: session.clientVersion,
@@ -48,7 +50,7 @@ class ContactsService {
         .catchError((Object error, StackTrace stackTrace) {
           _logger.warning(
             "Failed to open contacts context for account user ${session.userId} "
-            "at ${session.baseUrl} (hasCachedRootKey: ${cachedRootKey != null})",
+            "at ${session.baseUrl} (hasCachedRootKey: ${cachedWrappedRootContactKey != null})",
             error,
             stackTrace,
           );
@@ -58,7 +60,12 @@ class ContactsService {
     _ctx = opened.ctx;
     _session = session;
     await _database.configure(userId: session.userId);
-    await _persistWrappedRootKey(session.userId, opened.wrappedRootKey);
+    if (opened.wrappedRootContactKey != null) {
+      await _persistWrappedRootContactKey(
+        session.userId,
+        opened.wrappedRootContactKey!,
+      );
+    }
     _logger.info('Opened contacts context for user ${session.userId}');
   }
 
@@ -118,6 +125,7 @@ class ContactsService {
         break;
       }
     }
+    await _persistConfirmedWrappedRootKey();
     await _database.deleteUnreferencedCachedAttachments();
     return synced;
   }
@@ -141,7 +149,9 @@ class ContactsService {
   }
 
   Future<ContactRecord> createContact(ContactData data) async {
-    final created = await _requireCtx().createContact(data);
+    final ctx = _requireCtx();
+    final created = await ctx.createContact(data);
+    await _persistConfirmedWrappedRootKey();
     await _database.upsertContacts([created]);
     return created;
   }
@@ -150,7 +160,9 @@ class ContactsService {
     String contactId,
     ContactData data,
   ) async {
-    final updated = await _requireCtx().updateContact(contactId, data);
+    final ctx = _requireCtx();
+    final updated = await ctx.updateContact(contactId, data);
+    await _persistConfirmedWrappedRootKey();
     await _database.upsertContacts([updated]);
     return updated;
   }
@@ -158,9 +170,11 @@ class ContactsService {
   Future<void> deleteContact(String contactId) async {
     final ctx = _requireCtx();
     await ctx.deleteContact(contactId);
+    await _persistConfirmedWrappedRootKey();
     final deleted = await ctx.getDiff(0, _syncLimit);
-    final matching =
-        deleted.where((element) => element.id == contactId).toList();
+    final matching = deleted
+        .where((element) => element.id == contactId)
+        .toList();
     if (matching.isNotEmpty) {
       await _database.upsertContacts([matching.first]);
     } else {
@@ -168,10 +182,7 @@ class ContactsService {
     }
   }
 
-  Future<ContactRecord> setProfilePicture(
-    String contactId,
-    Uint8List bytes,
-  ) {
+  Future<ContactRecord> setProfilePicture(String contactId, Uint8List bytes) {
     return _setAttachment(
       contactId,
       ContactAttachmentType.profilePicture,
@@ -194,13 +205,13 @@ class ContactsService {
   ) async {
     final previousAttachmentId = (await _database.getContact(
       contactId,
-    ))
-        ?.profilePictureAttachmentId;
+    ))?.profilePictureAttachmentId;
     final updated = await _requireCtx().setAttachment(
       contactId,
       attachmentType,
       bytes,
     );
+    await _persistConfirmedWrappedRootKey();
     await _database.upsertContacts([updated]);
     final nextAttachmentId = updated.profilePictureAttachmentId;
     if (nextAttachmentId != null) {
@@ -234,10 +245,12 @@ class ContactsService {
   ) async {
     final previousAttachmentId = (await _database.getContact(
       contactId,
-    ))
-        ?.profilePictureAttachmentId;
-    final updated =
-        await _requireCtx().deleteAttachment(contactId, attachmentType);
+    ))?.profilePictureAttachmentId;
+    final updated = await _requireCtx().deleteAttachment(
+      contactId,
+      attachmentType,
+    );
+    await _persistConfirmedWrappedRootKey();
     await _database.upsertContacts([updated]);
     if (previousAttachmentId != null) {
       await _database.deleteCachedAttachment(previousAttachmentId);
@@ -278,7 +291,7 @@ class ContactsService {
     return ctx;
   }
 
-  WrappedRootContactKey? _cachedRootKey(int userId) {
+  WrappedRootContactKey? _cachedWrappedRootContactKey(int userId) {
     final encryptedKey = _preferences.getString(_entityKeyPref(userId));
     final header = _preferences.getString(_entityHeaderPref(userId));
     if (encryptedKey == null || header == null) {
@@ -287,12 +300,28 @@ class ContactsService {
     return WrappedRootContactKey(encryptedKey: encryptedKey, header: header);
   }
 
-  Future<void> _persistWrappedRootKey(
+  Future<void> _persistWrappedRootContactKey(
     int userId,
     WrappedRootContactKey key,
   ) async {
     await _preferences.setString(_entityKeyPref(userId), key.encryptedKey);
     await _preferences.setString(_entityHeaderPref(userId), key.header);
+  }
+
+  Future<void> _persistConfirmedWrappedRootKey() async {
+    final session = _session;
+    final ctx = _ctx;
+    if (session == null || ctx == null) {
+      return;
+    }
+    final currentWrappedRootContactKey = ctx.currentWrappedRootContactKey();
+    if (currentWrappedRootContactKey == null) {
+      return;
+    }
+    await _persistWrappedRootContactKey(
+      session.userId,
+      currentWrappedRootContactKey,
+    );
   }
 
   String _entityKeyPref(int userId) => 'entity_key_contact_$userId';

@@ -28,6 +28,11 @@ interface LoginContentsProps {
      * Called when the user clicks the signup option instead.
      */
     onSignUp: () => void;
+    /**
+     * If `true`, the server has disabled new user registration. The signup
+     * link will be hidden. See: [Note: Server-side registration gate].
+     */
+    registrationDisabled?: boolean;
 }
 
 /**
@@ -39,6 +44,7 @@ interface LoginContentsProps {
 export const LoginContents: React.FC<LoginContentsProps> = ({
     onSignUp,
     host,
+    registrationDisabled,
 }) => {
     const router = useRouter();
     const [isJoinAlbumContext, setIsJoinAlbumContext] = useState(false);
@@ -156,9 +162,11 @@ export const LoginContents: React.FC<LoginContentsProps> = ({
                             {t("cancel")}
                         </LinkButton>
                     ) : (
-                        <LinkButton onClick={onSignUp}>
-                            {t("no_account")}
-                        </LinkButton>
+                        !registrationDisabled && (
+                            <LinkButton onClick={onSignUp}>
+                                {t("no_account")}
+                            </LinkButton>
+                        )
                     )}
                     <Typography
                         variant="mini"

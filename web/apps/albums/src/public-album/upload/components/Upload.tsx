@@ -27,9 +27,9 @@ import type {
 import { uploadManager } from "@/public-album/upload/services/upload-manager";
 import { hasReliableCanvasReadback } from "@/public-album/upload/utils/canvas-integrity";
 import { useFileInput } from "@/shared/hooks/useFileInput";
+import { Album02Icon, Folder01Icon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
-import ImageOutlinedIcon from "@mui/icons-material/ImageOutlined";
-import PermMediaOutlinedIcon from "@mui/icons-material/PermMediaOutlined";
 import {
     Box,
     CircularProgress,
@@ -126,6 +126,7 @@ export const Upload: React.FC<UploadProps> = ({
     const [percentComplete, setPercentComplete] = useState(0);
     const [hasLivePhotos, setHasLivePhotos] = useState(false);
     const [uploaderName, setUploaderName] = useState("");
+    const [pendingUploadFileCount, setPendingUploadFileCount] = useState(0);
     const {
         show: showUploaderNameInput,
         props: uploaderNameInputVisibilityProps,
@@ -262,6 +263,7 @@ export const Upload: React.FC<UploadProps> = ({
             ([, path]) => !basename(path).startsWith("."),
         );
         uploadItemsAndPaths.current = prunedItemAndPaths;
+        setPendingUploadFileCount(prunedItemAndPaths.length);
         selectedUploadType.current = undefined;
         props.setLoading(false);
 
@@ -484,7 +486,7 @@ export const Upload: React.FC<UploadProps> = ({
                 open={uploaderNameInputVisibilityProps.open}
                 onClose={handleUploaderNameInputClose}
                 uploaderName={uploaderName}
-                uploadFileCount={uploadItemsAndPaths.current.length}
+                uploadFileCount={pendingUploadFileCount}
                 onSubmit={handlePublicUpload}
             />
         </>
@@ -610,7 +612,7 @@ const UploadOptions: React.FC<UploadOptionsProps> = ({
         <Box sx={{ p: "12px", pt: "16px" }}>
             <RoundedButtonStack>
                 <RowButton
-                    startIcon={<ImageOutlinedIcon />}
+                    startIcon={<HugeiconsIcon icon={Album02Icon} size={20} />}
                     endIcon={
                         pendingUploadType == "files" ? (
                             <PendingIndicator />
@@ -618,11 +620,11 @@ const UploadOptions: React.FC<UploadOptionsProps> = ({
                             <ChevronRightIcon />
                         )
                     }
-                    label={t("file")}
+                    label={t("files")}
                     onClick={() => onSelect("files")}
                 />
                 <RowButton
-                    startIcon={<PermMediaOutlinedIcon />}
+                    startIcon={<HugeiconsIcon icon={Folder01Icon} size={20} />}
                     endIcon={
                         pendingUploadType == "folders" ? (
                             <PendingIndicator />

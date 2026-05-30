@@ -79,11 +79,11 @@ const ChangelogContent: React.FC = () => {
     return (
         <Stack sx={{ gap: 2, mb: 1 }}>
             <Typography variant="h6">
-                {ut("App Lock and Better People Search ")}
+                {ut("Shared Albums Improvements")}
             </Typography>
             <Typography sx={{ color: "text.muted" }}>
                 {ut(
-                    "App Lock for enhanced security. Better people list experience with search.",
+                    "Upload files to shared albums. Add shared files to your albums or shared albums. Favorite files in shared albums. Indicator for shared files in map view.",
                 )}
             </Typography>
         </Stack>
