@@ -61,7 +61,7 @@ ente/
 | Desktop   | TypeScript   | Electron 41                 | electron-builder, ONNX, FFmpeg                  |
 | CLI       | Go 1.23      | Cobra                       | go-keyring, go-resty                            |
 | Rust      | Rust         | tokio, wasm-bindgen         | libsodium, UniFFI, Flutter Rust Bridge          |
-| Docs      | Markdown     | VitePress 1.6               | Yarn                                            |
+| Docs      | Markdown     | VitePress 1.6               | npm                                             |
 
 ---
 

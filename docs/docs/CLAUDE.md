@@ -686,17 +686,17 @@ Deleted files take up to 75 days (30-day trash + 45-day deletion queue). To spee
 ### Build System
 
 - **Framework:** VitePress 1.6.4
-- **Package manager:** Yarn 1.22.22
+- **Package manager:** npm 11.12.1
 - **Published at:** ente.com/help (base path `/help/`)
 - **Deployed via:** Cloudflare Pages (GitHub Actions on push to main)
 
 ```bash
-yarn install       # Install dependencies
-yarn dev           # Local dev server (localhost:5173)
-yarn build         # Production build → docs/.vitepress/dist
-yarn preview       # Preview built site
-yarn pretty        # Format with Prettier
-yarn pretty:check  # Check formatting
+npm ci             # Install dependencies
+npm run dev        # Local dev server (localhost:5173)
+npm run build      # Production build → docs/.vitepress/dist
+npm run preview    # Preview built site
+npm run lint:fix   # Format with Prettier
+npm run lint       # Check formatting
 ```
 
 ### Key Config Features

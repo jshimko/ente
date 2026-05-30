@@ -43,7 +43,7 @@ None in-repo — this is a leaf application. Released independently via the `ent
 
 2. **`src/preload.ts` cannot import from `src/`.** The sandbox disables Node integration in the preload, so it must be a single self-contained file. **Types-only** imports (e.g. `import type { ... } from "./types/ipc"`) are fine (erased at compile time); value imports from local modules are not. See `src/preload.ts:12-37,63-76`.
 
-3. **`yarn lint` must pass before any commit** — it runs prettier (check) + ESLint (strict type-checked) + `tsc`. The `tsconfig.json` is aggressively strict: `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `noUnusedLocals`, `noUnusedParameters`, `noImplicitReturns`, `noFallthroughCasesInSwitch`. Note `verbatimModuleSyntax` is intentionally **off** (ESM/CJS friction under Node). Non-null assertions (`!`) are intentionally **allowed** (ESLint override) — see the `[Note: non-null-assertions have better stack trace]` comment in `eslint.config.mjs`.
+3. **`npm run lint` must pass before any commit** — it runs prettier (check) + ESLint (strict type-checked) + `tsc`. The `tsconfig.json` is aggressively strict: `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `noUnusedLocals`, `noUnusedParameters`, `noImplicitReturns`, `noFallthroughCasesInSwitch`. Note `verbatimModuleSyntax` is intentionally **off** (ESM/CJS friction under Node). Non-null assertions (`!`) are intentionally **allowed** (ESLint override) — see the `[Note: non-null-assertions have better stack trace]` comment in `eslint.config.mjs`.
 
 4. **Do not bump `electron-builder` off `26.0.14`.** Pinned due to a cross-arch macOS FFmpeg packaging break (upstream issue #9161). Verify a clean universal-mac build before changing it.
 
@@ -130,23 +130,23 @@ Variants:
 
 ## Development Workflow
 
-All commands run from `desktop/` with **Yarn v1** (`packageManager: yarn@1.22.22`). npm is not supported. Root `Taskfile.yml` equivalents in parentheses.
+All commands run from `desktop/` with **npm** (`packageManager: npm@11.12.1`). Root `Taskfile.yml` equivalents in parentheses.
 
 ```bash
-yarn install --frozen-lockfile   # runs postinstall (rebuild native modules) + prepare (vips)
-yarn dev                         # (task desktop:dev) main + renderer concurrently; renderer HMR on :3008
-yarn dev-main                    # tsc + electron . (main only)
-yarn dev-renderer                # Next dev server for photos on :3008 (renderer only)
-yarn lint                        # (task desktop:lint) prettier --check + eslint + tsc — MUST pass
-yarn lint:fix                    # auto-fix prettier/eslint, then tsc
-yarn build                       # (task desktop:build) build-renderer + build-main (full, signed)
-yarn build:quick                 # build-renderer + unsigned --dir build (fast local iteration)
-yarn build:ci                    # build-renderer + tsc (no packaging)
+npm ci                           # runs postinstall (rebuild native modules) + prepare (vips)
+npm run dev                      # (task desktop:dev) main + renderer concurrently; renderer HMR on :3008
+npm run dev-main                 # tsc + electron . (main only)
+npm run dev-renderer             # Next dev server for photos on :3008 (renderer only)
+npm run lint                     # (task desktop:lint) prettier --check + eslint + tsc — MUST pass
+npm run lint:fix                 # auto-fix prettier/eslint, then tsc
+npm run build                    # (task desktop:build) build-renderer + build-main (full, signed)
+npm run build:quick              # build-renderer + unsigned --dir build (fast local iteration)
+npm run build:ci                 # build-renderer + tsc (no packaging)
 ```
 
 - `postinstall` → `electron-builder install-app-deps` rebuilds C/C++ native modules (FFmpeg, ONNX, vips) against Electron's bundled Node — **required** after dependency changes.
 - `prepare` → `node scripts/vips.js` downloads the vips binary for the current OS/arch.
-- **Testing**: there is **no test framework** in `desktop/`. Verification = `yarn lint` (prettier + eslint + tsc) + manual testing of the running app. ML-parity checks live under `scripts/`.
+- **Testing**: there is **no test framework** in `desktop/`. Verification = `npm run lint` (prettier + eslint + tsc) + manual testing of the running app. ML-parity checks live under `scripts/`.
 
 ### Build & renderer embedding
 
@@ -208,7 +208,7 @@ Packaging config: `electron-builder.yml`. `appId: io.ente.bhari-frame`, custom `
 - **Dev needs a startup delay.** The main process waits for the Next dev server on `:3008` before `loadURL`, otherwise Electron errors with `ERR_CONNECTION_REFUSED`.
 - **Auto-update can't be exercised in dev.** It requires signed builds; dev builds skip the check. Testing needs a throwaway release repo or `dev-app-update.yml`.
 - **CORS is deliberately widened.** `main.ts` allows external links to open in the browser and permits cross-origin requests (e.g. OpenStreetMap map tiles) from the `ente://app` origin. Touch these helpers carefully.
-- **Native modules must match Electron's Node.** If FFmpeg/ONNX/vips misbehave after a dependency change, re-run `yarn install` (triggers `electron-builder install-app-deps`).
+- **Native modules must match Electron's Node.** If FFmpeg/ONNX/vips misbehave after a dependency change, re-run `npm ci` (triggers `electron-builder install-app-deps`).
 - **Auto-launched startup hides the dock** on macOS (`app.dock?.hide()`), so a login-triggered launch isn't intrusive.
 - **`ReadableStream` typing clash** — the preload references `lib="dom"`, which conflicts with Node's stream types (`[Note: Node and web stream type mismatch]` in `preload.ts`). Be deliberate with stream typings there.
 
@@ -219,12 +219,12 @@ Packaging config: `electron-builder.yml`. `appId: io.ente.bhari-frame`, custom `
 - **Add a native function the renderer can call** → follow _Add an IPC method end-to-end_ above (all three files).
 - **Add a new native capability** → create `src/main/services/<name>.ts`, wire it through `ipc.ts` + `preload.ts` + the web types; persist any state via a `src/main/stores/` electron-store module.
 - **Add a menu or tray item** → `src/main/menu.ts` / the tray setup in `src/main.ts`; gate macOS-only items on `process.platform === "darwin"`.
-- **Bump Electron** → update `electron`, re-run `yarn install`, verify `yarn lint` and a universal-mac `yarn build:quick`. Do **not** bump `electron-builder` past `26.0.14` without a full mac build check.
+- **Bump Electron** → update `electron`, re-run `npm ci`, verify `npm run lint` and a universal-mac `npm run build:quick`. Do **not** bump `electron-builder` past `26.0.14` without a full mac build check.
 - **Cut a release** → follow `docs/release.md` (separate `ente-io/photos-desktop` repo, `photosd-v1.x.x` tag).
 
 ## External Docs
 
-- `desktop/docs/dev.md` — yarn commands
+- `desktop/docs/dev.md` — npm commands
 - `desktop/docs/dependencies.md` — native dependency rationale
 - `desktop/docs/release.md` — full release process
 - `desktop/README.md` — quick start

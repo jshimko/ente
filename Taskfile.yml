@@ -29,11 +29,13 @@ tasks:
   web:install:
     desc: Install web dependencies
     dir: web
+    # NOTE: go-task resolves `sources`/`generates` relative to `dir` (web/), so
+    # these paths are intentionally NOT prefixed with `web/`.
     sources:
-      - web/yarn.lock
-      - web/package.json
-      - web/apps/*/package.json
-      - web/packages/*/package.json
+      - yarn.lock
+      - package.json
+      - apps/*/package.json
+      - packages/*/package.json
     status:
       - test -d node_modules
     preconditions:
@@ -53,17 +55,10 @@ tasks:
     desc: "Build a web app [task web:build -- <app>]"
     dir: web
     deps: [web:install]
-    sources:
-      - web/apps/**/src/**/*
-      - web/apps/**/package.json
-      - web/apps/**/next.config.*
-      - web/apps/**/tsconfig.json
-      - web/packages/*/src/**/*
-      - web/packages/*/package.json
-      - web/yarn.lock
-    generates:
-      - web/apps/**/out/**/*
-      - web/apps/**/dist/**/*
+    # Caching is deferred to Turbo, whose own content-addressed cache is the
+    # source of truth. Layering go-task `sources`/`generates` on top risks a
+    # stale skip when `.turbo`/`out` is cleared out-of-band, and the 14-app
+    # output globs are unmaintainable. A warm `turbo build` is near-instant.
     cmds:
       - yarn turbo build
 
@@ -71,14 +66,9 @@ tasks:
     desc: Build the WASM package from Rust source
     dir: web
     deps: [web:install]
-    sources:
-      - rust/core/src/**/*.rs
-      - rust/core/Cargo.toml
-      - rust/core/Cargo.lock
-      - web/packages/wasm/src/**/*.rs
-      - web/packages/wasm/Cargo.toml
-    generates:
-      - web/packages/wasm/pkg/**/*
+    # Turbo-driven (`turbo build --filter=ente-wasm`); caching deferred to Turbo.
+    # The real Rust source lives in rust/bindings/wasm/ente-wasm/ (+ workspace
+    # deps), which Turbo's task inputs track — not go-task globs.
     preconditions:
       - sh: command -v wasm-pack
         msg: "wasm-pack is required — install via cargo install wasm-pack"
@@ -89,13 +79,7 @@ tasks:
     desc: Lint all web code (prettier + eslint + tsc)
     dir: web
     deps: [web:install]
-    sources:
-      - web/apps/*/src/**/*
-      - web/packages/*/src/**/*
-      - web/apps/*/tsconfig.json
-      - web/packages/*/tsconfig.json
-      - web/.prettierrc.json
-      - web/yarn.lock
+    # Caching deferred to Turbo (`turbo lint tsc` + prettier). No go-task sources.
     cmds:
       - yarn lint
 
@@ -110,8 +94,9 @@ tasks:
     desc: Run web tests (WASM package)
     dir: web
     deps: [web:install]
+    # Tests always run (no caching) — `task test` should actually execute them.
     cmds:
-      - yarn test:run
+      - yarn test
 
   web:clean:
     desc: Clean web build artifacts
@@ -129,8 +114,8 @@ tasks:
     desc: Download server Go dependencies
     dir: server
     sources:
-      - server/go.mod
-      - server/go.sum
+      - go.mod
+      - go.sum
     preconditions:
       - sh: command -v go
         msg: "go is required — install from https://go.dev"
@@ -141,14 +126,21 @@ tasks:
     desc: Build the Museum server binary
     dir: server
     deps: [server:install]
+    # NOTE: go-task resolves `sources`/`generates` relative to `dir` (server/),
+    # so these paths are intentionally NOT prefixed with `server/`.
     sources:
-      - server/cmd/**/*.go
-      - server/ente/**/*.go
-      - server/pkg/**/*.go
-      - server/go.mod
-      - server/go.sum
+      - cmd/**/*.go
+      - ente/**/*.go
+      - pkg/**/*.go
+      - internal/**/*.go
+      - go.mod
+      - go.sum
     generates:
-      - server/bin/museum
+      - bin/museum
+    # `status` is ANDed with the sources checksum: rebuild if the binary is
+    # missing (deleted out-of-band) OR any source changed.
+    status:
+      - test -f bin/museum
     preconditions:
       - sh: command -v go
         msg: "go is required — install from https://go.dev"
@@ -167,12 +159,14 @@ tasks:
   server:lint:
     desc: Lint server Go code (go vet + staticcheck)
     dir: server
+    # Paths are relative to `dir` (server/) — see note on server:build.
     sources:
-      - server/cmd/**/*.go
-      - server/ente/**/*.go
-      - server/pkg/**/*.go
-      - server/go.mod
-      - server/go.sum
+      - cmd/**/*.go
+      - ente/**/*.go
+      - pkg/**/*.go
+      - internal/**/*.go
+      - go.mod
+      - go.sum
     preconditions:
       - sh: command -v go
         msg: "go is required — install from https://go.dev"
@@ -251,7 +245,10 @@ tasks:
       - sh: command -v fvm
         msg: "fvm is required — install via dart pub global activate fvm"
     status:
-      - test -L .fvm/flutter_sdk
+      # Skip only when the linked SDK matches the version pinned in .fvmrc.
+      # A bare `test -L` would treat any stale symlink as up-to-date and never
+      # re-install after the pinned version changes.
+      - "test \"$(readlink .fvm/flutter_sdk 2>/dev/null | sed 's#.*/##')\" = \"$(grep -o '[0-9][0-9.]*' .fvmrc | head -1)\""
     cmds:
       - fvm install
       - fvm exec flutter precache
@@ -260,12 +257,19 @@ tasks:
     desc: Bootstrap mobile workspace (melos bootstrap)
     dir: mobile
     deps: [mobile:fvm-install]
+    # NOTE: go-task resolves `sources`/`generates` relative to `dir` (mobile/),
+    # so these paths are intentionally NOT prefixed with `mobile/`. melos's
+    # workspace globs are apps/*, packages/*, apps/photos/plugins/* (melos.yaml).
     sources:
-      - mobile/pubspec.lock
-      - mobile/pubspec.yaml
-      - mobile/melos.yaml
-      - mobile/apps/*/pubspec.yaml
-      - mobile/packages/*/pubspec.yaml
+      - pubspec.lock
+      - pubspec.yaml
+      - melos.yaml
+      - apps/*/pubspec.yaml
+      - packages/*/pubspec.yaml
+      - apps/photos/plugins/*/pubspec.yaml
+    # `status` is ANDed with the sources checksum: a bootstrap that fails midway
+    # records no checksum, so it correctly re-runs even though .dart_tool exists;
+    # the test -d check additionally forces a re-run if .dart_tool is deleted.
     status:
       - test -d .dart_tool
     preconditions:
@@ -304,10 +308,12 @@ tasks:
     desc: Run Flutter static analysis
     dir: mobile
     deps: [mobile:bootstrap]
+    # Paths are relative to `dir` (mobile/) — NOT prefixed with `mobile/`.
+    # `apps/**/*.dart` also covers apps/photos/plugins/**.
     sources:
-      - mobile/apps/**/*.dart
-      - mobile/packages/**/*.dart
-      - mobile/analysis_options.yaml
+      - apps/**/*.dart
+      - packages/**/*.dart
+      - analysis_options.yaml
     cmds:
       - fvm exec flutter analyze
 
@@ -364,50 +370,57 @@ tasks:
     desc: Install desktop dependencies
     dir: desktop
     sources:
-      - desktop/yarn.lock
-      - desktop/package.json
+      - package-lock.json
+      - package.json
     status:
       - test -d node_modules
     preconditions:
-      - sh: command -v yarn
-        msg: "yarn is required — install via corepack or npm"
+      - sh: command -v npm
+        msg: "npm is required — install Node.js (https://nodejs.org)"
     cmds:
-      - yarn install --frozen-lockfile
+      - npm ci
 
   desktop:dev:
     desc: Start desktop dev (Electron + Next.js)
     dir: desktop
     deps: [desktop:install]
     cmds:
-      - yarn dev
+      - npm run dev
 
   desktop:build:
     desc: Build desktop app
     dir: desktop
     deps: [desktop:install]
+    # Fingerprints the main-process TypeScript + packaging config. CAVEAT: this
+    # does NOT track the embedded web renderer — a renderer-only web change won't
+    # retrigger packaging here. Iterate on the renderer via `desktop:dev` (HMR)
+    # or `web:build`; this task is the main-process build + electron-builder pack.
     sources:
-      - desktop/src/**/*
-      - desktop/package.json
-      - desktop/tsconfig.json
-      - desktop/electron-builder.yml
-      - desktop/yarn.lock
+      - src/**/*
+      - package.json
+      - tsconfig.json
+      - electron-builder.yml
+      - package-lock.json
     generates:
-      - desktop/app/**/*
-      - desktop/dist/**/*
+      - app/**/*
+      - dist/**/*
+    # Repackage if the tsc output is missing (cleaned) OR sources changed.
+    status:
+      - test -d app
     cmds:
-      - yarn build
+      - npm run build
 
   desktop:lint:
     desc: Lint desktop code
     dir: desktop
     deps: [desktop:install]
     sources:
-      - desktop/src/**/*
-      - desktop/package.json
-      - desktop/tsconfig.json
-      - desktop/yarn.lock
+      - src/**/*
+      - package.json
+      - tsconfig.json
+      - package-lock.json
     cmds:
-      - yarn lint
+      - npm run lint
 
   desktop:clean:
     desc: Clean desktop build artifacts
@@ -423,8 +436,8 @@ tasks:
     desc: Download CLI Go dependencies
     dir: cli
     sources:
-      - cli/go.mod
-      - cli/go.sum
+      - go.mod
+      - go.sum
     preconditions:
       - sh: command -v go
         msg: "go is required — install from https://go.dev"
@@ -435,15 +448,19 @@ tasks:
     desc: Build the CLI binary
     dir: cli
     deps: [cli:install]
+    # Paths are relative to `dir` (cli/) — NOT prefixed with `cli/`.
     sources:
-      - cli/cmd/**/*.go
-      - cli/pkg/**/*.go
-      - cli/internal/**/*.go
-      - cli/main.go
-      - cli/go.mod
-      - cli/go.sum
+      - cmd/**/*.go
+      - pkg/**/*.go
+      - internal/**/*.go
+      - main.go
+      - go.mod
+      - go.sum
     generates:
-      - cli/bin/ente
+      - bin/ente
+    # Rebuild if the binary is missing OR any source changed (see server:build).
+    status:
+      - test -f bin/ente
     preconditions:
       - sh: command -v go
         msg: "go is required — install from https://go.dev"
@@ -463,55 +480,64 @@ tasks:
     desc: Install docs dependencies
     dir: docs
     sources:
-      - docs/yarn.lock
-      - docs/package.json
+      - package-lock.json
+      - package.json
     status:
       - test -d node_modules
     preconditions:
-      - sh: command -v yarn
-        msg: "yarn is required — install via corepack or npm"
+      - sh: command -v npm
+        msg: "npm is required — install Node.js (https://nodejs.org)"
     cmds:
-      - yarn install --frozen-lockfile
+      - npm ci
 
   docs:dev:
     desc: Start docs dev server (VitePress)
     dir: docs
     deps: [docs:install]
     cmds:
-      - yarn dev
+      - npm run dev
 
   docs:build:
     desc: Build docs for production
     dir: docs
     deps: [docs:install]
+    # NOTE: go-task resolves paths relative to `dir` (docs/). The VitePress
+    # content root is docs/docs/ on disk → `docs/...` relative to this dir.
     sources:
-      - docs/docs/**/*.md
-      - docs/docs/.vitepress/config.ts
-      - docs/docs/.vitepress/sidebar.ts
-      - docs/docs/.vitepress/theme/**/*
-      - docs/yarn.lock
-      - docs/package.json
+      - docs/**/*.md
+      - docs/.vitepress/config.ts
+      - docs/.vitepress/sidebar.ts
+      - docs/.vitepress/theme/**/*
+      - package-lock.json
+      - package.json
     generates:
-      - docs/docs/.vitepress/dist/**/*
+      - docs/.vitepress/dist/**/*
+    # Rebuild if the dist output is missing (cleaned) OR sources changed.
+    status:
+      - test -d docs/.vitepress/dist
     cmds:
-      - yarn build
+      - npm run build
 
   docs:format:
     desc: Format docs with Prettier
     dir: docs
     deps: [docs:install]
     cmds:
-      - yarn pretty
+      - npm run lint:fix
 
   docs:format-check:
     desc: Check docs formatting (no write)
     dir: docs
     deps: [docs:install]
+    # Authored content only (relative to dir docs/); excludes .vitepress/dist
+    # and .vitepress/cache so a prior build doesn't invalidate the fingerprint.
     sources:
-      - docs/docs/**/*.md
-      - docs/docs/.vitepress/**/*
+      - docs/**/*.md
+      - docs/.vitepress/config.ts
+      - docs/.vitepress/sidebar.ts
+      - docs/.vitepress/theme/**/*
     cmds:
-      - yarn pretty:check
+      - npm run lint
 
   docs:clean:
     desc: Clean docs build artifacts
@@ -519,245 +545,78 @@ tasks:
       - rm -rf docs/node_modules docs/docs/.vitepress/dist docs/docs/.vitepress/cache
 
   # ===========================================================================
-  # RUST — Cargo (independent crates, per-crate tasks run in parallel)
+  # RUST — Cargo (single workspace at rust/, shared target/ and Cargo.lock)
   # ===========================================================================
+  #
+  # rust/ is ONE Cargo workspace (rust/Cargo.toml). Each command is a single
+  # invocation from `dir: rust` scoped to the three primary crates via `-p`
+  # (ente-core = crates/core, ente-rs = apps/cli, ente_photos = crates/photos).
+  # Caching is deferred to Cargo's own incremental compilation — go-task does NOT
+  # fingerprint these. Layering go-task `sources` on top would over-cache: it
+  # would report "up to date" and skip Cargo entirely after `cargo clean` wipes
+  # the shared rust/target/. Running per-crate builds in parallel is also avoided
+  # — concurrent cargo processes contend on the same target/ lock.
 
   rust:build:
-    desc: Build all Rust crates (debug)
-    deps: [rust:build:core, rust:build:cli, rust:build:photos]
-
-  rust:build:core:
-    internal: true
-    dir: rust/core
-    sources:
-      - rust/core/src/**/*.rs
-      - rust/core/Cargo.toml
-      - rust/core/Cargo.lock
+    desc: Build the primary Rust crates (debug)
+    dir: rust
     preconditions:
       - sh: command -v cargo
         msg: "cargo is required — install from https://rustup.rs"
     cmds:
-      - cargo build
-
-  rust:build:cli:
-    internal: true
-    dir: rust/cli
-    sources:
-      - rust/cli/src/**/*.rs
-      - rust/cli/Cargo.toml
-      - rust/cli/Cargo.lock
-    preconditions:
-      - sh: command -v cargo
-        msg: "cargo is required — install from https://rustup.rs"
-    cmds:
-      - cargo build
-
-  rust:build:photos:
-    internal: true
-    dir: rust/photos
-    sources:
-      - rust/photos/src/**/*.rs
-      - rust/photos/Cargo.toml
-    preconditions:
-      - sh: command -v cargo
-        msg: "cargo is required — install from https://rustup.rs"
-    cmds:
-      - cargo build
+      - cargo build -p ente-core -p ente-rs -p ente_photos
 
   rust:build-release:
-    desc: Build all Rust crates (release)
-    deps:
-      [
-        rust:build-release:core,
-        rust:build-release:cli,
-        rust:build-release:photos,
-      ]
-
-  rust:build-release:core:
-    internal: true
-    dir: rust/core
+    desc: Build the primary Rust crates (release)
+    dir: rust
     preconditions:
       - sh: command -v cargo
         msg: "cargo is required — install from https://rustup.rs"
     cmds:
-      - cargo build --release
-
-  rust:build-release:cli:
-    internal: true
-    dir: rust/cli
-    preconditions:
-      - sh: command -v cargo
-        msg: "cargo is required — install from https://rustup.rs"
-    cmds:
-      - cargo build --release
-
-  rust:build-release:photos:
-    internal: true
-    dir: rust/photos
-    preconditions:
-      - sh: command -v cargo
-        msg: "cargo is required — install from https://rustup.rs"
-    cmds:
-      - cargo build --release
+      - cargo build --release -p ente-core -p ente-rs -p ente_photos
 
   rust:test:
-    desc: Test all Rust crates
-    deps: [rust:test:core, rust:test:cli, rust:test:photos]
-
-  rust:test:core:
-    internal: true
-    dir: rust/core
+    desc: Test the primary Rust crates
+    dir: rust
     preconditions:
       - sh: command -v cargo
         msg: "cargo is required — install from https://rustup.rs"
     cmds:
-      - cargo test
-
-  rust:test:cli:
-    internal: true
-    dir: rust/cli
-    preconditions:
-      - sh: command -v cargo
-        msg: "cargo is required — install from https://rustup.rs"
-    cmds:
-      - cargo test
-
-  rust:test:photos:
-    internal: true
-    dir: rust/photos
-    preconditions:
-      - sh: command -v cargo
-        msg: "cargo is required — install from https://rustup.rs"
-    cmds:
-      - cargo test
+      - cargo test -p ente-core -p ente-rs -p ente_photos
 
   rust:lint:
-    desc: Lint all Rust crates (clippy)
-    deps: [rust:lint:core, rust:lint:cli, rust:lint:photos]
-
-  rust:lint:core:
-    internal: true
-    dir: rust/core
-    sources:
-      - rust/core/src/**/*.rs
-      - rust/core/Cargo.toml
+    desc: Lint the primary Rust crates (clippy)
+    dir: rust
     preconditions:
       - sh: command -v cargo
         msg: "cargo is required — install from https://rustup.rs"
     cmds:
-      - cargo clippy -- -D warnings
-
-  rust:lint:cli:
-    internal: true
-    dir: rust/cli
-    sources:
-      - rust/cli/src/**/*.rs
-      - rust/cli/Cargo.toml
-    preconditions:
-      - sh: command -v cargo
-        msg: "cargo is required — install from https://rustup.rs"
-    cmds:
-      - cargo clippy -- -D warnings
-
-  rust:lint:photos:
-    internal: true
-    dir: rust/photos
-    sources:
-      - rust/photos/src/**/*.rs
-      - rust/photos/Cargo.toml
-    preconditions:
-      - sh: command -v cargo
-        msg: "cargo is required — install from https://rustup.rs"
-    cmds:
-      - cargo clippy -- -D warnings
+      - cargo clippy -p ente-core -p ente-rs -p ente_photos -- -D warnings
 
   rust:fmt:
-    desc: Format all Rust code
-    deps: [rust:fmt:core, rust:fmt:cli, rust:fmt:photos]
-
-  rust:fmt:core:
-    internal: true
-    dir: rust/core
+    desc: Format the primary Rust crates
+    dir: rust
     preconditions:
       - sh: command -v cargo
         msg: "cargo is required — install from https://rustup.rs"
     cmds:
-      - cargo fmt
-
-  rust:fmt:cli:
-    internal: true
-    dir: rust/cli
-    preconditions:
-      - sh: command -v cargo
-        msg: "cargo is required — install from https://rustup.rs"
-    cmds:
-      - cargo fmt
-
-  rust:fmt:photos:
-    internal: true
-    dir: rust/photos
-    preconditions:
-      - sh: command -v cargo
-        msg: "cargo is required — install from https://rustup.rs"
-    cmds:
-      - cargo fmt
+      - cargo fmt -p ente-core -p ente-rs -p ente_photos
 
   rust:fmt-check:
     desc: Check Rust formatting (no write)
-    deps: [rust:fmt-check:core, rust:fmt-check:cli, rust:fmt-check:photos]
-
-  rust:fmt-check:core:
-    internal: true
-    dir: rust/core
-    sources:
-      - rust/core/src/**/*.rs
+    dir: rust
     preconditions:
       - sh: command -v cargo
         msg: "cargo is required — install from https://rustup.rs"
     cmds:
-      - cargo fmt --check
-
-  rust:fmt-check:cli:
-    internal: true
-    dir: rust/cli
-    sources:
-      - rust/cli/src/**/*.rs
-    preconditions:
-      - sh: command -v cargo
-        msg: "cargo is required — install from https://rustup.rs"
-    cmds:
-      - cargo fmt --check
-
-  rust:fmt-check:photos:
-    internal: true
-    dir: rust/photos
-    sources:
-      - rust/photos/src/**/*.rs
-    preconditions:
-      - sh: command -v cargo
-        msg: "cargo is required — install from https://rustup.rs"
-    cmds:
-      - cargo fmt --check
+      - cargo fmt -p ente-core -p ente-rs -p ente_photos --check
 
   rust:clean:
-    desc: Clean all Rust build artifacts
-    deps: [rust:clean:core, rust:clean:cli, rust:clean:photos]
-
-  rust:clean:core:
-    internal: true
-    dir: rust/core
-    cmds:
-      - cargo clean
-
-  rust:clean:cli:
-    internal: true
-    dir: rust/cli
-    cmds:
-      - cargo clean
-
-  rust:clean:photos:
-    internal: true
-    dir: rust/photos
+    desc: Clean Rust build artifacts (shared workspace target/)
+    dir: rust
+    preconditions:
+      - sh: command -v cargo
+        msg: "cargo is required — install from https://rustup.rs"
     cmds:
       - cargo clean
 
