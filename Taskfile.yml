@@ -365,6 +365,11 @@ tasks:
         msg: "fvm is required — install via dart pub global activate fvm"
     cmds:
       - fvm exec flutter build apk {{.ENDPOINT_FLAG}} --dart-define=cronetHttpNoPlay=true --release --flavor independent --target-platform android-arm64
+      # Copy the signed APK to the repo root for convenience. ROOT_DIR is the
+      # directory of the root Taskfile (the repo root). The original stays under
+      # build/ so `task mobile:sideload` still finds it.
+      - cp build/app/outputs/flutter-apk/app-independent-release.apk "{{.ROOT_DIR}}/"
+      - 'echo "APK -> {{.ROOT_DIR}}/app-independent-release.apk"'
 
   mobile:sideload:
     desc: Install the built APK on a connected device via ADB

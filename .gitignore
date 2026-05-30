@@ -13,5 +13,8 @@ node_modules/
 
 .task
 mobile/.fvm
+
+# Release APK copied to repo root by `task mobile:apk`
+/app-independent-release.apk
 .claude/settings.local.json
 local-dev.yaml
