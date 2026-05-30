@@ -54,10 +54,12 @@ RUN --mount=type=cache,id=yarn,target=/opt/yarn \
     cd web && yarn install --frozen-lockfile
 
 # build and cache wasm first
-COPY rust/Cargo.toml rust/Cargo.lock ./rust/
-COPY rust/crates/core/ ./rust/crates/core/
-COPY rust/crates/contacts/ ./rust/crates/contacts/
-COPY rust/bindings/wasm/ente-wasm/ ./rust/bindings/wasm/ente-wasm/
+#
+# ente-wasm is a member of the rust/Cargo.toml workspace. Cargo requires every
+# workspace member's manifest to be present to build any single member, so we
+# copy the whole workspace rather than cherry-picking individual crates.
+# (rust/target is excluded via .dockerignore so this stays small.)
+COPY rust/ ./rust/
 COPY web/packages/build-config/ ./web/packages/build-config
 COPY web/packages/contacts/ ./web/packages/contacts
 COPY web/packages/wasm/ ./web/packages/wasm

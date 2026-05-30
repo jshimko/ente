@@ -61,16 +61,16 @@ docker_build(
 )
 
 # Build web frontend image (all apps: photos, auth, accounts, cast, share, embed, memories, paste)
-# Context is repo root — Dockerfile copies web/ and rust/core/
+# Context is repo root — Dockerfile copies web/ and the whole rust/ workspace.
+# ente-wasm is a member of the rust/Cargo.toml workspace, so cargo needs every
+# member present; whitelist all of rust/ (rust/target is dropped via .dockerignore).
 docker_build(
     'ente-web-dev',
     context='.',
     dockerfile='./web/Dockerfile',
     only=[
         'web/',
-        'rust/.cargo/',
-        'rust/contacts/',
-        'rust/core/',
+        'rust/',
     ],
 )
 

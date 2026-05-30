@@ -24,7 +24,8 @@ infra
 mobile
 node_modules
 **/node_modules/**
-rust/{apps,cli,ensu,photos,uniffi}
+rust/target/
+rust/**/target/
 server
 web/apps/{ensu,locker,payments,twoof3}
 web/packages/wasm/pkg/
